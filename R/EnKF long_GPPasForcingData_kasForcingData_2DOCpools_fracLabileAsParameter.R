@@ -64,7 +64,11 @@
 ###################
 #Run Kalman filter
 rm(list=ls())
-load('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/R Data/EnKF_LongData.RData')
+load('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/R Data/EnKF_LongData_20160919.RData')
+
+data$ma_iota<-ma.weighted(data$Iota,data$sdIota/data$Iota,n=9)
+data$ma_gpp<-ma.weighted(data$GPP,data$sdGPP/data$GPP,n=9)
+data$ma_r<-ma.weighted(data$R,data$sdR/data$R,n=9)
 
 # spin up, just repeating the first X days at the begining of the timeseries; autocorrelation effects?? 
 spinUpLength<-0
