@@ -1,0 +1,5 @@
+Column descriptions with units for data frame 'data' used in EnKF models 
+[column name] [units] [description] 
+
+[datetime] [YYYY-MM-DD] [date] 
+[streamWaterdisch] [m<sup>3]
