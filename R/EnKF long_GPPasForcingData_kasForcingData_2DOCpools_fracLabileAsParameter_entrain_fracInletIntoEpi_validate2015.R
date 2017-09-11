@@ -26,8 +26,10 @@ data2$hypo_dicInt<-data2$hypo_dicInt*0.25 # entrained CO2 is much less than wher
 # should we cut down to only when high frequency discharge out was known? occurs on 2014-06-02
 data2<-data2[min(which(!is.na(data2$highFreqWaterHeight))):max(which(!is.na(data2$highFreqWaterHeight))),]
 data2<-data2[!is.na(data2$ma_gpp),]
+val<-data2[data2$datetime>as.POSIXct('2015-01-01'),]
 data2<-data2[data2$datetime<as.POSIXct('2015-01-01'),] # only keeping 2014
 data2<-data2[min(which(!is.na(data2$doc))):nrow(data2),]
+val<-val[min(which(!is.na(val$doc))):nrow(val),]
 
 # adding in trash pump discharge out starting on Aug. 22, 2015 until the end of time series in 2015 
 data2$QoutInt[data2$datetime>=as.POSIXct('2015-08-22')]<-data2$QoutInt[data2$datetime>=as.POSIXct('2015-08-22')]+400
