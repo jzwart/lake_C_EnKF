@@ -5,7 +5,7 @@
 #Run Kalman filter
 rm(list=ls())
 # load('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/R Data/EnKF_LongData_20161218.RData')
-load('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/R Data/EnKF_LongData_20170223.RData')
+load('/Users/jzwart/LakeCarbonEnKF/Data/EnKF_LongData_20170223.RData')
 
 splitFunc<-function(epiDens,streamDens,fracIn){ # function that tells how much load goes into epi 
   fracInEpi=exp(-fracIn*(streamDens-epiDens))
