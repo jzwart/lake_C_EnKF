@@ -1,0 +1,770 @@
+# creating fake data for MDF 
+# JAZ; 2016-11-22 
+
+rm(list=ls())
+
+load('/Users/jzwart/LakeCarbonEnKF/Data/EnKF_LongData_20170223.RData')
+
+splitFunc<-function(epiDens,streamDens,fracIn){ # function that tells how much load goes into epi 
+  fracInEpi=exp(-fracIn*(streamDens-epiDens))
+  return(fracInEpi)
+}
+splitFunc<-function(epiDens,streamDens,fracIn){ # function that tells how much load goes into epi 
+  fracInEpi=exp(-fracIn*(streamDens-epiDens))
+  return(fracIn)
+}
+
+require(deSolve)
+require(LakeMetabolizer)
+require(snow)
+require(sp)
+require(rgeos)
+require(parallel)
+
+# spin up, just repeating the first X days at the begining of the timeseries; autocorrelation effects?? 
+spinUpLength<-0
+spinUp<-data[1:spinUpLength,]
+data2<-rbind(spinUp,data)
+# should we cut down to only when high frequency discharge out was known? occurs on 2014-06-02
+data2<-data2[min(which(!is.na(data2$highFreqWaterHeight))):max(which(!is.na(data2$highFreqWaterHeight))),]
+data2<-data2[!is.na(data2$ma_gpp),]
+data2<-data2[data2$datetime<as.POSIXct('2015-01-01'),] # only keeping 2014
+data2<-data2[min(which(!is.na(data2$doc))):nrow(data2),]
+
+# adding in trash pump discharge out starting on Aug. 22, 2015 until the end of time series in 2015 
+data2$QoutInt[data2$datetime>=as.POSIXct('2015-08-22')]<-data2$QoutInt[data2$datetime>=as.POSIXct('2015-08-22')]+400
+
+fracLabile0<-0.01 # fraction of initial DOC pool that is labile
+fracLabile<-0.08 # fraction loaded t-DOC that is labile; estimate from Berggren et al. 2010 Eco Letts & ISME
+
+# need some initial conditions for observations (draw from normal distribution?)
+data2$dic[1]<-data2$dic[min(which(!is.na(data2$dic)))]
+data2$doc[1]<-data2$doc[min(which(!is.na(data2$doc)))]
+
+## *********************** EnKF ***************************## Gao et al. 2011 is a useful reference 
+nEn<-100 # number of ensembles 
+nStep<-length(data2$datetime)
+
+# draws from priors to create ensemble 
+parGuess <- c(0.004,0.3,0.3,0.1) #r20; units: day-1; fraction labile of loaded DOC; fraction inlet that goes into epi; turnover rate parameters set constant frac labile estimated 
+min<-c(0.004,0.31,0.5,0.9)
+max<-c(0.004,0.31,0.5,0.9)
+
+rPDF<-abs(rnorm(n=nEn,mean = parGuess[1],sd = (max[1]-min[1])/5)) # max-min / 5 is rule of thumb sd; forcing positive for negative draws 
+rPDF_fast<-abs(rnorm(n=nEn,mean = parGuess[2],sd = (max[2]-min[2])/5))
+fracPDF<-abs(rnorm(n=nEn,mean=parGuess[3],sd=(max[3]-min[3])/5))
+fracInPDF<-abs(rnorm(n=nEn,mean=parGuess[4],sd=(max[4]-min[4])/5))
+
+# setting up initial parameter values for all ensemble members 
+rVec<-matrix(rPDF) # each row is an ensemble member 
+rVec_fast<-matrix(rPDF_fast)
+fracVec<-matrix(fracPDF)
+fracInVec<-matrix(fracInPDF)
+halfSat<-4 # half saturation constant for turnover rate of doc 
+
+mm<-function(r,doc,halfSat,epiVol){
+  doc<-doc/epiVol*12
+  rout<-r*doc/(halfSat+doc)
+  return(rout)
+}
+
+# setting up state values for all ensemble members (all the same initial pool size )
+# updated on 2016-07-16 to draw from a normal distribution using first observation and SD
+dicVec<-data2$dic
+docVec<-data2$doc
+if(is.na(dicVec[1])){
+  dicVec[1]<-dicVec[min(which(!is.na(dicVec)))]
+  docVec[1]<-docVec[min(which(!is.na(docVec)))]
+}
+
+data2$entrainHypo<-as.numeric(data2$entrainVol<0)
+data2$entrainEpi<-as.numeric(data2$entrainVol>0)
+
+# initial B transition matrix for each ensemble  
+B<-array(NA,dim=c(4,4,nStep,nEn)) # array of transition matrix B[a,b,c,d]; 
+# where [a,b] is transition matrix DIC & DOCr & DOCl, c=timeStep, and d=ensemble member 
+# initial parameters of B at timestep 1 
+for(i in 1:nEn){
+  B[,,1,i]<-matrix(c(1-data2$QoutInt[1]/data2$epiVol[1]-data2$kCO2[1]/data2$thermo.depth[1]+
+                       (data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainHypo[1]/data2$epiVol[1],
+                     mm(rFunc(rVec[i],data2$wtr[1]),docVec[1],halfSat,data2$epiVol[1]),mm(rFunc(rVec_fast[i],data2$wtr[1]),docVec[1],halfSat,data2$epiVol[1]),0,
+                     0,1-mm(rFunc(rVec[i],data2$wtr[1]),docVec[1],halfSat,data2$epiVol[1])-data2$QoutInt[1]/data2$epiVol[1]+(data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainHypo[1]/data2$epiVol[1],0,0,
+                     0,0,1-mm(rFunc(rVec_fast[i],data2$wtr[1]),docVec[1],halfSat,data2$epiVol[1])-data2$QoutInt[1]/data2$epiVol[1]+(data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainHypo[1]/data2$epiVol[1],0,
+                     0,1-mm(rFunc(rVec[i],data2$wtr[1]),docVec[1],halfSat,data2$epiVol[1])-data2$QoutInt[1]/data2$epiVol[1]+(data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainHypo[1]/data2$epiVol[1],
+                     1-mm(rFunc(rVec_fast[i],data2$wtr[1]),docVec[1],halfSat,data2$epiVol[1])-data2$QoutInt[1]/data2$epiVol[1]+(data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainHypo[1]/data2$epiVol[1],0),
+                   nrow=4,byrow=T)
+}
+
+# estimate of observation error covariance matrix
+# error in DOC / DIC pool esitmate comes from concentration estimates and volume of epilimnion
+# DOC / DIC concentration error from replication day in WL on 2014-07-30. CV for DOC is 0.1325858, DIC is 0.1367684
+# Epi: area sd = 1000m2; depth sd = 0.5 m;
+# iota sd from metab estimates 
+docSDadjust<-1
+dicSDadjust<-1
+docSD<-(data2$doc/data2$epiVol)*0.1325858 # DOC concentration sd in mol C
+docSD<-ifelse(is.na(docSD),docSD,docSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22 
+docSD<-docSD*docSDadjust # DOC concentration sd in mol C; modifying for sensativity analysis
+dicSD<-(data2$dic/data2$epiVol)*0.1367684 # DIC concentration sd in mol C 
+dicSD<-ifelse(is.na(dicSD),dicSD,dicSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22 
+dicSD<-dicSD*dicSDadjust
+areaSD<-4000 # constant SD in m 
+depthSD<-0.25 # constant SD in m 
+
+H<-array(0,dim=c(2,2,nStep))
+# propogation of error for multiplication 
+docPoolSD<-data2$doc*sqrt((docSD/(data2$doc/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
+dicPoolSD<-data2$dic*sqrt((dicSD/(data2$dic/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
+H[1,1,]<-dicPoolSD^2 #variance of DIC
+H[2,2,]<-docPoolSD^2 #variance of DOC 
+H[1,1,]<-ifelse(is.na(H[1,1,]),mean(H[1,1,],na.rm=T),H[1,1,]) # taking care of na's in DIC; setting to mean of variance if NA 
+H[2,2,]<-ifelse(is.na(H[2,2,]),mean(H[2,2,],na.rm=T),H[2,2,]) # taking care of na's in DOC; setting to mean of variance if NA 
+
+y=array(rbind(dicVec,docVec),dim=c(2,1,nStep))
+y=array(rep(y,nEn),dim=c(2,1,nStep,nEn)) # array of observations y[a,b,c,d]; where a=dic/doc, b=column, c=timeStep, and d=ensemble member 
+
+X<-array(NA,dim =c(4,1,nStep,nEn)) # model estimate matrices X[a,b,c,d]; where a=dic/doc_r/doc_l, b=column, c=timestep, and d=ensemble member 
+
+#initializing estimate of state, X, with first observation 
+# drawing from normal distribution for inital pool sizes 
+X[1,1,1,]<-rnorm(n=nEn,y[1,1,1,],sd=dicPoolSD[1])
+X[2,1,1,]<-rnorm(n=nEn,y[2,1,1,]*(1-fracLabile0),sd=docPoolSD[1]*(1-fracLabile0)) # labile pool is 90% of initial DOC pool
+X[3,1,1,]<-rnorm(n=nEn,y[2,1,1,]*fracLabile0,sd=docPoolSD[1]*fracLabile0) # recalcitrant pool is 10% of initial DOC pool
+X[4,1,1,]<-X[2,1,1,]+X[3,1,1,] # recalcitrant pool + labile pool 
+
+# operator matrix saying 1 if there is observation data available, 0 otherwise 
+h<-array(0,dim=c(2,8,nStep))
+for(i in 1:nStep){
+  h[1,4,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic 
+  h[2,8,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) #doc total (we only have data on total DOC pool)
+}
+
+P <- array(0,dim=c(4,4,nStep))
+
+#Define matrix C, parameters of covariates [2x6]
+C<-array(NA,dim=c(4,7,nStep,nEn)) # array of transition matrix C[a,b,c,d]; 
+#intializing first time step 
+for(i in 1:nEn){
+  C[,,1,i]<-matrix(c(data2$kCO2[1],1,-data2$ma_gpp[1],0,0,0,data2$hypo_dicInt[1],0,0,0,data2$ma_gpp[1],0,(1-fracVec[i]),data2$hypo_docInt[1]*(1-fracLabile0),
+                     0,0,0,0,data2$ma_gpp[1],fracVec[i],data2$hypo_docInt[1]*fracLabile0,
+                     0,0,0,data2$ma_gpp[1],data2$ma_gpp[1],1,data2$hypo_docInt[1]),nrow=4,byrow=T)
+}
+
+ut<-array(NA,dim=c(7,1,nStep,nEn)) # array of transition matrix C[a,b,c,d]; 
+#intializing first time step 
+for(i in 1:nEn){
+  ut[,,1,i]<-matrix(c(data2$DICeq[1]*data2$epiVol[1]/data2$thermo.depth[1],
+                      data2$dicIn[1]-data2$streamWaterdisch[1]*data2$Inlet_dic[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])),(1-GPPrespired),
+                      exude,exudeLabile,data2$docIn[1]-data2$streamDOCdisch[1]/12/1000*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])),
+                      (data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainEpi[1]),ncol=1)
+}
+
+pars<-array(rep(NA,nEn),dim=c(4,1,nStep,nEn)) # parameters: r20
+pars[1,1,1,]<-rVec
+pars[2,1,1,]<-rVec_fast
+pars[3,1,1,]<-fracVec
+pars[4,1,1,]<-fracInVec
+
+# set up a list for all matrices 
+z=list(B=B,y=y,X=X,C=C,ut=ut,pars=pars)
+
+# i is ensemble member; t is timestep 
+i=1
+t=2
+
+# set up Y vector for which we concatonate parameters, states, and observed data 
+Y<-array(NA,c(8,1,nStep,nEn))
+Y[1,1,1,]<-rVec # r20 parameter 
+Y[2,1,1,]<-rVec_fast # r20 labile parameter 
+Y[3,1,1,]<-fracVec # fraction labile of loaded DOC
+Y[4,1,1,]<-fracInVec # fraction of inlet into epi
+Y[5,1,1,]<-z$X[1,1,1,] # DIC state  
+Y[6,1,1,]<-z$X[2,1,1,] # DOC recalcitrant state  
+Y[7,1,1,]<-z$X[3,1,1,] # DOC labile state  
+Y[8,1,1,]<-z$X[4,1,1,] # DOC total state  
+
+
+#Iterate through time
+for(t in 2:nStep){
+  # Forecasting; need to update parameters, 
+  z$pars[1:4,1,t,i]<-Y[1:4,1,t-1,i] # r20
+  z$X[1:4,1,t-1,i]<-Y[5:8,1,t-1,i] # updating state variables from Y 
+  
+  #Predictions
+  z$X[,,t,i]<-z$B[,,t-1,i]%*%z$X[,,t-1,i] + z$C[,,t-1,i]%*%z$ut[,,t-1,i] # forecasting state variable predictions 
+  z$B[,,t,i]<-matrix(c(1-data2$QoutInt[t]/data2$epiVol[t]-data2$kCO2[t]/data2$thermo.depth[t]+
+                         (data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[4,1,t,i])))*data2$entrainHypo[t]/data2$epiVol[t], # zmix is fraction of pool available for exchange with atm; parameters estimates are the same as previous time step
+                       mm(rFunc(z$pars[1,1,t,i],data2$wtr[t]),z$X[2,1,t,i],halfSat,data2$epiVol[t]),mm(rFunc(z$pars[2,1,t,i],data2$wtr[t]),z$X[2,1,t,i],halfSat,data2$epiVol[t]),0,
+                       0,1-mm(rFunc(z$pars[1,1,t,i],data2$wtr[t]),z$X[2,1,t,i],halfSat,data2$epiVol[t])-data2$QoutInt[t]/data2$epiVol[t]+(data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[4,1,t,i])))*data2$entrainHypo[t]/data2$epiVol[t],0,0,
+                       0,0,1-mm(rFunc(z$pars[2,1,t,i],data2$wtr[t]),z$X[2,1,t,i],halfSat,data2$epiVol[t])-data2$QoutInt[t]/data2$epiVol[t]+(data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[4,1,t,i])))*data2$entrainHypo[t]/data2$epiVol[t],0,
+                       0,1-mm(rFunc(z$pars[1,1,t,i],data2$wtr[t]),z$X[2,1,t,i],halfSat,data2$epiVol[t])-data2$QoutInt[t]/data2$epiVol[t]+(data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[4,1,t,i])))*data2$entrainHypo[t]/data2$epiVol[t],
+                       1-mm(rFunc(z$pars[2,1,t,i],data2$wtr[t]),z$X[2,1,t,i],halfSat,data2$epiVol[t])-data2$QoutInt[t]/data2$epiVol[t]+(data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[4,1,t,i])))*data2$entrainHypo[t]/data2$epiVol[t],0),
+                     nrow=4,byrow=T)
+  z$y[,,t,i]<-z$y[,,t,i] # observation of states stay the same 
+  # parameters are of previous timestep for matrix C, parameters of covariates [2x6]
+  z$C[,,t,i]<-matrix(c(data2$kCO2[t],1,-data2$ma_gpp[t],0,0,0,data2$hypo_dicInt[t],0,0,0,data2$ma_gpp[t],0,(1-z$pars[3,1,t,i]),data2$hypo_docInt[t]*(1-fracLabile0),
+                       0,0,0,0,data2$ma_gpp[t],z$pars[3,1,t,i],data2$hypo_docInt[t]*fracLabile0,
+                       0,0,0,data2$ma_gpp[t],data2$ma_gpp[t],1,data2$hypo_docInt[t]),nrow=4,byrow=T)
+  z$ut[,,t,i] <- matrix(c(data2$DICeq[t]*data2$epiVol[t]/data2$thermo.depth[t],
+                          data2$dicIn[t]-data2$streamWaterdisch[t]*data2$Inlet_dic[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[4,1,t,i])),(1-GPPrespired),
+                          exude,exudeLabile,data2$docIn[t]-data2$streamDOCdisch[t]/12/1000*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[4,1,t,i])),
+                          (data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[4,1,t,i])))*data2$entrainEpi[t]),ncol=1)
+  
+  # forecast Y vector 
+  Y[1:4,1,t,i]<-Y[1:4,1,t-1,i] #r20, r20_fast, fraction labile loaded DOC parameters same as previous timestep
+  Y[5:8,1,t,i]<-z$X[1:4,1,t,i] #forecasted states 
+} # End iteration
+
+# True state is in Y vector with decay rate of DOC set to 0.005 day-1 
+# plot(Y[1,1,,1])
+# plot(Y[2,1,,1])
+# plot(Y[3,1,,1])
+# plot(Y[4,1,,1])# DIC state 
+# plot(Y[5,1,,1])
+# plot(Y[6,1,,1])
+# plot(Y[7,1,,1])# DOC total state  
+
+true<-Y
+
+reps=2
+freq=7
+obs=1
+
+# draws from priors to create ensemble 
+parGuess <- c(0.007,0.1) #r20; units: day-1
+min<-c(0.001,0.3)
+max<-c(0.02,0.5)
+
+rPDF<-abs(rnorm(n=nEn,mean = parGuess[1],sd = (max[1]-min[1])/5)) # max-min / 5 is rule of thumb sd; forcing positive for negative draws 
+fracInPDF<-abs(rnorm(n=nEn,mean=parGuess[2],sd=(max[2]-min[2])/5))
+# fracInPDF<-rbeta(n=nEn,shape1 = 2,shape2 = .5)
+
+# setting up initial parameter values for all ensemble members 
+rVec<-matrix(rPDF) # each row is an ensemble member 
+fracInVec<-matrix(fracInPDF)
+hist(fracInVec)
+
+# initial B transition matrix for each ensemble  
+B<-array(t(c(rep(NA,nEn),rep(NA,nEn),rep(NA,nEn),rep(NA,nEn))),dim=c(2,2,nStep,nEn)) # array of transition matrix B[a,b,c,d]; 
+# where [a,b] is transition matrix DIC & DOC, c=timeStep, and d=ensemble member 
+
+# initial parameters of B at timestep 1 
+for(i in 1:nEn){
+  B[,,1,i]<-matrix(c(1-data2$QoutInt[1]/data2$epiVol[1]-data2$kCO2[1]/data2$thermo.depth[1]+
+                       (data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainHypo[1]/data2$epiVol[1],
+                     rVec[i],0,1-rVec[i]-data2$QoutInt[1]/data2$epiVol[1]+
+                       (data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainHypo[1]/data2$epiVol[1]),
+                   nrow=2,byrow=T)
+}
+# observations come from model generated data 
+docCV<-0.133 # observation error to add to true data 
+dicCV<-0.137 # observation error to add to true data 
+reps<-reps # number of replicates for sampling from true data distribution 
+dicVec<-true[5,1,,1]
+docVec<-true[8,1,,1]
+dicSD_samp<-rep(NA,nStep)
+docSD_samp<-rep(NA,nStep)
+docSD<-(data2$doc/data2$epiVol)*0.1325858 # DOC concentration sd in mol C
+docSD<-ifelse(is.na(docSD),docSD,docSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22 
+dicSD<-(data2$dic/data2$epiVol)*0.1367684 # DIC concentration sd in mol C 
+dicSD<-ifelse(is.na(dicSD),dicSD,dicSD[data2$datetime=='2014-07-30'])
+for(t in 1:nStep){
+  curdic<-rnorm(n=reps,mean=true[5,1,t,1]/data2$epiVol[t],sd = dicSD[data2$datetime=='2014-07-30']*obs)
+  curdoc<-rnorm(n=reps,mean=true[8,1,t,1]/data2$epiVol[t],sd = docSD[data2$datetime=='2014-07-30']*obs)
+  dicVec[t]<-mean(curdic)*data2$epiVol[t]
+  docVec[t]<-mean(curdoc)*data2$epiVol[t]
+  dicSD_samp[t]<-sd(curdic)*data2$epiVol[t]
+  docSD_samp[t]<-sd(curdoc)*data2$epiVol[t]
+}
+# how many observations to have
+freq<-freq # sampling frequency in days 
+dicVec[2:nStep]<-ifelse(data2$timeStep[2:nStep]%%freq==0,dicVec[2:nStep],NA)
+docVec[2:nStep]<-ifelse(data2$timeStep[2:nStep]%%freq==0,docVec[2:nStep],NA)
+if(is.na(dicVec[1])){
+  dicVec[1]<-dicVec[min(which(!is.na(dicVec)))]
+  docVec[1]<-docVec[min(which(!is.na(docVec)))]
+}
+
+
+docSD<-(data2$doc/data2$epiVol)*0.1325858 # DOC concentration sd in mol C
+docSD<-ifelse(is.na(docVec),NA,docSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22
+docSD<-docSD*obs # DOC concentration sd in mol C; modifying for sensativity analysis
+dicSD<-(data2$dic/data2$epiVol)*0.1367684 # DIC concentration sd in mol C 
+dicSD<-ifelse(is.na(dicVec),NA,dicSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22 
+dicSD<-dicSD*obs
+areaSD<-4000 # constant SD in m 
+depthSD<-0.25 # constant SD in m 
+
+H<-array(0,dim=c(2,2,nStep))
+# propogation of error for multiplication 
+docPoolSD<-docVec*sqrt((docSD/(docVec/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
+dicPoolSD<-dicVec*sqrt((dicSD/(dicVec/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
+H[1,1,]<-dicPoolSD^2 #variance of DIC
+H[2,2,]<-docPoolSD^2 #variance of DOC 
+H[1,1,]<-ifelse(is.na(H[1,1,]),mean(H[1,1,],na.rm=T),H[1,1,]) # taking care of na's in DIC; setting to mean of variance if NA 
+H[2,2,]<-ifelse(is.na(H[2,2,]),mean(H[2,2,],na.rm=T),H[2,2,]) # taking care of na's in DOC; setting to mean of variance if NA 
+
+y=array(rbind(dicVec,docVec),dim=c(2,1,nStep))
+y=array(rep(y,nEn),dim=c(2,1,nStep,nEn)) # array of observations y[a,b,c,d]; where a=dic/doc, b=column, c=timeStep, and d=ensemble member 
+
+X<-array(NA,dim =c(2,1,nStep,nEn)) # model estimate matrices X[a,b,c,d]; where a=dic/doc, b=column, c=timestep, and d=ensemble member 
+
+#initializing estimate of state, X, with first observation 
+# drawing from normal distribution for inital pool sizes 
+X[1,1,1,]<-rnorm(n=nEn,y[1,1,1,],sd=dicPoolSD[1])
+X[2,1,1,]<-rnorm(n=nEn,y[2,1,1,],sd=docPoolSD[1])
+
+# operator matrix saying 1 if there is observation data available, 0 otherwise 
+h<-array(0,dim=c(2,4,nStep))
+for(i in 1:nStep){
+  h[1,3,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic 
+  h[2,4,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) #doc
+}
+
+
+P <- array(0,dim=c(2,2,nStep))
+
+#Define matrix C, parameters of covariates [2x6]
+C<-array(NA,dim=c(2,6,nStep,nEn)) # array of transition matrix C[a,b,c,d]; 
+#intializing first time step 
+for(i in 1:nEn){
+  C[,,1,i]<-matrix(c(data2$kCO2[1],1,-data2$ma_gpp[1],0,0,data2$hypo_dicInt[1],0,0,0,data2$ma_gpp[1],1,data2$hypo_docInt[1]),nrow=2,byrow=T)
+}
+
+ut<-array(NA,dim=c(6,1,nStep,nEn)) # array of transition matrix C[a,b,c,d]; 
+#intializing first time step 
+for(i in 1:nEn){
+  ut[,,1,i]<-matrix(c(data2$DICeq[1]*data2$epiVol[1]/data2$thermo.depth[1],
+                      data2$dicIn[1]-data2$streamWaterdisch[1]*data2$Inlet_dic[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])),(1-GPPrespired),
+                      exudeTotal,data2$docIn[1]-data2$streamDOCdisch[1]/12/1000*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])),
+                      (data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainEpi[1]),ncol=1)
+}
+
+pars<-array(rep(NA,nEn),dim=c(2,1,nStep,nEn)) # parameters: r20
+pars[1,1,1,]<-rVec
+pars[2,1,1,]<-fracInVec
+
+# set up a list for all matrices 
+z=list(B=B,y=y,X=X,C=C,ut=ut,pars=pars)
+
+# i is ensemble member; t is timestep 
+i=1
+t=2
+
+# set up Y vector for which we concatonate parameters, states, and observed data 
+Y<-array(NA,c(4,1,nStep,nEn))
+Y[1,1,1,]<-rVec # r20 parameter 
+Y[2,1,1,]<-fracInVec # fraction that goes into epi 
+Y[3,1,1,]<-z$X[1,1,1,] # DIC state  
+Y[4,1,1,]<-z$X[2,1,1,] # DOC state 
+
+#Iterate through time
+for(t in 2:nStep){
+  for(i in 1:nEn){
+    # Forecasting; need to update parameters, 
+    z$pars[1:2,1,t,i]<-Y[1:2,1,t-1,i] # r20
+    z$X[1:2,1,t-1,i]<-Y[3:4,1,t-1,i] # updating state variables from Y 
+    
+    #Predictions
+    z$X[,,t,i]<-z$B[,,t-1,i]%*%z$X[,,t-1,i] + z$C[,,t-1,i]%*%z$ut[,,t-1,i] # forecasting state variable predictions 
+    z$B[,,t,i]<-matrix(c(1-data2$QoutInt[t]/data2$epiVol[t]-data2$kCO2[t]/data2$thermo.depth[t]+
+                           (data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[2,1,t,i])))*data2$entrainHypo[t]/data2$epiVol[t],
+                         z$pars[1,1,t,i],0,1-z$pars[1,1,t,i]-data2$QoutInt[t]/data2$epiVol[t]+
+                           (data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[2,1,t,i])))*data2$entrainHypo[t]/data2$epiVol[t]),
+                       nrow=2,byrow=T)
+    z$y[,,t,i]<-z$y[,,t,i] # observation of states stay the same 
+    # parameters are of previous timestep for matrix C, parameters of covariates [2x6]
+    z$C[,,t,i]<-matrix(c(data2$kCO2[t],1,-data2$ma_gpp[t],0,0,data2$hypo_dicInt[t],0,0,0,data2$ma_gpp[t],1,data2$hypo_docInt[t]),nrow=2,byrow=T)
+    z$ut[,,t,i]<-matrix(c(data2$DICeq[t]*data2$epiVol[t]/data2$thermo.depth[t],
+                          data2$dicIn[t]-data2$streamWaterdisch[t]*data2$Inlet_dic[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[2,1,t,i])),(1-GPPrespired),
+                          exudeTotal,data2$docIn[t]-data2$streamDOCdisch[t]/12/1000*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[2,1,t,i])),
+                          (data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[2,1,t,i])))*data2$entrainEpi[t]),ncol=1)
+    
+    # forecast Y vector 
+    Y[1:2,1,t,i]<-Y[1:2,1,t-1,i] #r20,same as previous timestep
+    Y[3:4,1,t,i]<-z$X[1:2,1,t,i] #forecasted states 
+    
+  } # end forecast for each ensemble for timestep t
+  
+  #begin data assimilation if there are any observations 
+  if(any(!is.na(z$y[,,t,i]))==TRUE){ # update vector as long as there is one observation of state 
+    
+    #mean of vector Y for all ensembles at time step t 
+    YMean<-matrix(apply(Y[,,t,],MARGIN = 1,FUN=mean),nrow=length(Y[,1,1,1]))
+    delta_Y<-Y[,,t,]-matrix(rep(YMean,nEn),nrow=length(Y[,1,1,1]))# difference in ensemble state and mean of all ensemble states 
+    
+    K<-((1/(nEn-1))*delta_Y%*%t(delta_Y)%*%t(h[,,t]))%*%
+      qr.solve(((1/(nEn-1))*h[,,t]%*%delta_Y%*%t(delta_Y)%*%t(h[,,t])+H[,,t]))   # Kalman gain 7x2 matrix; 7x3 if iota is included 
+    
+    # yObs as a 2x1 matrix  ; 3x1 if iota included 
+    yObs<-array(NA,c(2,1,nEn))
+    yObs[1,1,]<-z$y[1,1,t,1] #DIC obs
+    yObs[2,1,]<-z$y[2,1,t,1] #DOC obs
+    yObs[,,]<-ifelse(is.na(yObs[,,]),0,yObs[,,])
+    
+    # update Y vector 
+    for(i in 1:nEn){
+      Y[,,t,i]<-Y[,,t,i]+K%*%(yObs[,,i]-h[,,t]%*%Y[,,t,i])
+    }
+    
+    # checking for parameter convergence 
+    parsMean<-matrix(apply(Y[1:length(z$pars[,1,1,1]),,t,],MARGIN = 1,FUN=mean),nrow=length(z$pars[,1,1,1]))
+    pars_matrix<-array(NA,dim=c(length(z$pars[,1,1,1]),length(z$pars[,1,1,1]),nEn))
+    for(i in 1:nEn){
+      delta_pars<-(Y[1:length(z$pars[,1,1,1]),1,t,i]-parsMean)
+      pars_matrix[,,i]<-delta_pars%*%t(delta_pars)
+    }
+    Ptemp<-matrix(0,ncol=length(z$pars[,1,1,1]),nrow=length(z$pars[,1,1,1]))
+    for(i in 1:nEn){
+      Ptemp<-Ptemp+pars_matrix[,,i]
+    }
+    P[,,t]<-(1/(nEn-1))*Ptemp
+  }
+} # End iteration
+
+# # plotting ***************************************************
+windows()
+DOCout<-apply(Y[4,1,,],MARGIN = 1,FUN=mean)
+ylim=range(c(Y[4,1,,]/data2$epiVol*12),z$y[2,1,,1]/data2$epiVol*12,na.rm = T)
+plot(DOCout/data2$epiVol*12,type='l',ylim=ylim,ylab='DOC mg/L')
+for(i in 1:nEn){
+  lines(Y[4,1,,i]/data2$epiVol*12,col='gray',ylab='')
+}
+lines(DOCout/data2$epiVol*12,ylab='')
+par(new=T)
+plot(z$y[2,1,,1]/data2$epiVol*12,ylim=ylim,col='red',pch=16,ylab='')
+arrows(seq(1:nStep),(z$y[2,1,,1]/data2$epiVol*12)-docSD_samp/data2$epiVol*12,seq(1:nStep),(z$y[2,1,,1]/data2$epiVol*12)+docSD_samp/data2$epiVol*12,code=3,length=0.1,angle=90,col='red')
+lines(true[8,1,,1]/data2$epiVol*12,ylim = ylim,col='blue',lwd=2)
+
+windows()
+DICout<-apply(z$X[1,1,,],MARGIN = 1,FUN=mean)
+ylim=range(c(z$X[1,1,,]/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12),na.rm = T)
+plot(DICout/data2$epiVol*12,type='l',ylim=ylim,ylab='DIC mg/L')
+for(i in 1:nEn){
+  lines(z$X[1,1,,i]/data2$epiVol*12,col='gray',ylab='')
+}
+lines(DICout/data2$epiVol*12,ylab='')
+par(new=T)
+plot(z$y[1,1,,1]/data2$epiVol*12,ylim=ylim,col='red',pch=16,ylab='')
+arrows(seq(1:nStep),(z$y[1,1,,1]/data2$epiVol*12)-dicSD_samp/data2$epiVol*12,seq(1:nStep),(z$y[1,1,,1]/data2$epiVol*12)+dicSD_samp/data2$epiVol*12,code=3,length=0.1,angle=90,col='red')
+lines(true[5,1,,1]/data2$epiVol*12,ylim = ylim,col='blue',lwd=2)
+
+windows()
+rOut<-apply(rFunc(Y[1,1,,],data2$wtr),MARGIN = 1,FUN=mean)
+ylim=range(rFunc(Y[1,1,,],data2$wtr))
+plot(rOut,type='l',ylim=ylim,ylab='r day-1')
+for(i in 1:nEn){
+  lines(rFunc(Y[1,1,,i],data2$wtr),col='gray',ylab='')
+}
+lines(rOut,ylab='')
+lines(apply(Y[1,1,,],MARGIN=1,FUN=mean),col='red') # r20 is in red
+
+windows()
+rOut<-apply(Y[1,1,,],MARGIN = 1,FUN=mean)
+ylim=range(Y[1,1,,])
+plot(rOut,type='l',ylim=ylim,ylab='r day-1')
+for(i in 1:nEn){
+  lines(Y[1,1,,i],col='gray',ylab='')
+}
+lines(rOut,ylab='')
+
+windows()
+rOut<-apply(splitFunc(data2$epiDens,data2$streamDens,Y[2,1,,]),MARGIN = 1,FUN=mean)
+ylim=range(splitFunc(data2$epiDens,data2$streamDens,Y[2,1,,]))
+plot(rOut,type='l',ylim=ylim,ylab='r day-1')
+for(i in 1:nEn){
+  lines(splitFunc(data2$epiDens,data2$streamDens,Y[2,1,,i]),col='gray',ylab='')
+}
+lines(rOut,ylab='')
+
+windows()
+rOut<-apply(Y[2,1,,],MARGIN = 1,FUN=mean)
+ylim=range(Y[2,1,,])
+plot(rOut,type='l',ylim=ylim,ylab='r day-1')
+for(i in 1:nEn){
+  lines(Y[2,1,,i],col='gray',ylab='')
+}
+lines(rOut,ylab='')
+
+
+windows()
+l_mar = 0.35
+b_mar = 0.1
+t_mar = 0.05
+r_mar= 0.05
+gapper = 0.15 # space between panels
+
+cex=2
+lwd=2
+par(mar=c(5,6,4,2),mfrow=c(1,2))
+DOCout<-apply(Y[4,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+DOCpredictSD<-apply(Y[4,1,,]/data2$epiVol*12,MARGIN = 1,FUN=sd)
+DOCout<-cbind(DOCout,z$y[2,1,(spinUpLength+1):nStep,1]/data2$epiVol*12)
+DOCout<-cbind(DOCout,(true[8,1,,1]/data2$epiVol*12))
+ylim=range(c(na.omit(DOCout+DOCpredictSD),na.omit(DOCout-DOCpredictSD),z$y[2,1,,1]/data2$epiVol*12+docPoolSD/data2$epiVol*12,
+             z$y[2,1,,1]/data2$epiVol*12-docPoolSD/data2$epiVol*12),na.rm=T)
+xlim=ylim
+
+plot(DOCout[spinUpLength+1:nStep,1]~DOCout[spinUpLength+1:nStep,2],ylim=ylim,cex=2,cex.axis=1.5,xlim=xlim,pch=16,
+     ylab=expression(Predicted~DOC~(mg~C~L^-1)),cex.lab=cex,xlab=expression(Observed~DOC~(mg~C~L^-1)))
+arrows(DOCout[,2]-docSD_samp/data2$epiVol*12,DOCout[,1], # error bars for observed DOC concentration
+       DOCout[,2]+docSD_samp/data2$epiVol*12,DOCout[,1],
+       code=3,length=0.1,angle=90,col='gray60',lwd=lwd)
+arrows(DOCout[,2],DOCout[,1]-DOCpredictSD, # error bars for predicted DOC concentration 
+       DOCout[,2],DOCout[,1]+DOCpredictSD,
+       code=3,length=0.1,angle=90,col='gray60',lwd=lwd)
+points(DOCout[spinUpLength+1:nStep,1]~DOCout[spinUpLength+1:nStep,2],cex=2,pch=16)
+points(DOCout[!is.na(DOCout[,2]),1]~DOCout[!is.na(DOCout[,2]),3],cex=2,col='blue',pch=16)
+abline(0,1,lty=2,lwd=2,col='gray')
+
+DICout<-apply(Y[3,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+DICpredictSD<-apply(Y[3,1,,]/data2$epiVol*12,MARGIN = 1,FUN=sd)
+DICout<-cbind(DICout,z$y[1,1,(spinUpLength+1):nStep,1]/data2$epiVol*12)
+DICout<-cbind(DICout,(true[5,1,,1]/data2$epiVol*12))
+ylim=range(c(na.omit(DICout+DICpredictSD),na.omit(DICout-DICpredictSD),z$y[1,1,,1]/data2$epiVol*12+dicPoolSD/data2$epiVol*12,
+             z$y[1,1,,1]/data2$epiVol*12-dicPoolSD/data2$epiVol*12),na.rm=T)
+xlim=ylim
+plot(DICout[spinUpLength+1:nStep,1]~DICout[spinUpLength+1:nStep,2],ylim=ylim,cex=2,cex.axis=1.5,xlim=xlim,pch=16,
+     ylab=expression(Predicted~pCO[2]~(mg~C~L^-1)),cex.lab=cex,xlab=expression(Observed~pCO[2]~(mg~C~L^-1)))
+arrows(DICout[,2]-dicSD_samp/data2$epiVol*12,DICout[,1], # error bars for observed DOC concentration
+       DICout[,2]+dicSD_samp/data2$epiVol*12,DICout[,1],
+       code=3,length=0.1,angle=90,col='gray60',lwd=lwd)
+arrows(DICout[,2],DICout[,1]-DICpredictSD, # error bars for predicted DOC concentration 
+       DICout[,2],DICout[,1]+DICpredictSD,
+       code=3,length=0.1,angle=90,col='gray60',lwd=lwd)
+points(DICout[spinUpLength+1:nStep,1]~DICout[spinUpLength+1:nStep,2],cex=2,pch=16)
+points(DICout[!is.na(DICout[,2]),1]~DICout[!is.na(DICout[,2]),3],cex=2,col='blue',pch=16)
+abline(0,1,lty=2,lwd=2,col='gray')
+
+
+
+
+sqrt(mean((DOCout[,1]-DOCout[,2])^2,na.rm=T)) #RMSE mod-obs
+sqrt(mean((DOCout[,1]-DOCout[,3])^2,na.rm=T)) # RMSE mod-true 
+sqrt(mean((DOCout[,2]-DOCout[,3])^2,na.rm=T)) #RMSE obs-true
+
+sqrt(mean((DICout[,1]-DICout[,2])^2,na.rm=T)) #RMSE mod-obs
+sqrt(mean((DICout[,1]-DICout[,3])^2,na.rm=T)) # RMSE mod-true 
+sqrt(mean((DICout[,2]-DICout[,3])^2,na.rm=T)) #RMSE obs-true
+
+mean(DOCout[,1]-DOCout[,2],na.rm=T)^2 #Bias mod-obs
+mean(DOCout[,1]-DOCout[,3],na.rm=T)^2 #Bias mod-true 
+mean(DOCout[,2]-DOCout[,3],na.rm=T)^2 #Bias obs-true
+
+mean(DICout[,1]-DICout[,2],na.rm=T)^2 #Bias mod-obs
+mean(DICout[,1]-DICout[,3],na.rm=T)^2 #Bias mod-true 
+mean(DICout[,2]-DICout[,3],na.rm=T)^2 #Bias obs-true
+
+summary(lm(DOCout[,1]~DOCout[,2]))$r.squared #Precision mod-obs
+summary(lm(DOCout[,1]~DOCout[,3]))$r.squared #Precision mod-true 
+summary(lm(DOCout[,2]~DOCout[,3]))$r.squared #Precision obs-true
+
+summary(lm(DICout[,1]~DICout[,2]))$r.squared #Precision mod-obs
+summary(lm(DICout[,1]~DICout[,3]))$r.squared #Precision mod-true 
+summary(lm(DICout[,2]~DICout[,3]))$r.squared #Precision obs-true
+
+
+
+windows()
+png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig3_DOC_CO2_CV_fakeData.png',
+    res=300, width=7, height=7, units = 'in')
+l_mar = 0.35
+b_mar = 0.1
+t_mar = 0.05
+r_mar= 0.05
+gapper = 0.15 # space between panels
+
+cex=2
+lwd=4
+par(mar=c(5,6,4,2))
+DOCout<-apply(Y[4,1,,],MARGIN = 1,FUN=mean)
+DOCpredictSD<-apply(Y[4,1,,],MARGIN = 1,FUN=sd)
+DOCcv<-DOCpredictSD/DOCout
+DOCcv<-cbind(DOCcv,docPoolSD/z$y[2,1,,1])
+DICout<-apply(Y[3,1,,],MARGIN = 1,FUN=mean)
+DICpredictSD<-apply(Y[3,1,,],MARGIN = 1,FUN=sd)
+DICcv<-DICpredictSD/DICout
+DICcv<-cbind(DICcv,dicPoolSD/dicSDadjust/z$y[1,1,,1])
+ylim=range(DICcv,DOCcv,na.rm=T)
+
+plot(DOCcv[,1]~as.POSIXct(data2$datetime),ylim=ylim,cex=2,cex.axis=1.5,pch=16,type='l',lwd=lwd,
+     ylab=expression(CV~DOC~and~CO[2]~(mol~C)),cex.lab=cex,xlab='')
+lines(DICcv[,1]~as.POSIXct(data2$datetime),ylim=ylim,cex=2,cex.axis=1.5,pch=16,type='l',lwd=lwd,col='gray60')
+points(DOCcv[,2]~as.POSIXct(data2$datetime),lwd=lwd,lty=2,pch=16,cex=cex)
+points(DICcv[,2]~as.POSIXct(data2$datetime),lwd=lwd,lty=2,pch=16,cex=cex,col='grey60')
+legend("topright", legend=c("DA DOC CV",'DA CO2 CV','Obs DOC CV','Obs CO2 CV'),
+       col=c('black','gray60','black','gray60'),pt.bg=c('black','gray60','black','gray60'),
+       ncol=1,lwd=c(4,4,0,0),bty='n',lty=c(1,1,0,0),pch = c(0,0,16,16),pt.cex=c(0,0,2,2))
+dev.off()
+
+# DOC pCO2 throught time Fig. 3
+png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig3_DOC_CO2_concentration_truth.png',
+res=300, width=14, height=7, units = 'in')
+# windows()
+l_mar = 0.35
+b_mar = 0.1
+t_mar = 0.05
+r_mar= 0.05
+gapper = 0.15 # space between panels
+
+cex=2.5
+cex.lab=2
+lwd=2
+ylim=c(0.5,3)
+par(mar=c(5,6,4,2),mfrow=c(1,2))
+DOCout<-apply(Y[4,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+ylim=range(c(Y[4,1,,]/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12+docPoolSD/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12-docPoolSD/data2$epiVol*12),na.rm=T)
+plot(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=1.5,
+     ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab)
+for(i in 1:nEn){
+  lines(Y[4,1,(spinUpLength+1):nStep,i]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+        col='gray',ylab='',lwd=lwd)
+}
+lines(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=3,col='gray30')
+lines(true[8,1,,1]/data2$epiVol*12~as.POSIXct(data2$datetime),ylim = ylim,col='black',lwd=3,lty=6)
+par(new=T)
+plot(z$y[2,1,(spinUpLength+1):nStep,1]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),cex.axis=1.5,ylab=expression(DOC~(mg~C~L^-1)),
+     ylim=ylim,col='black',pch=16,cex=cex,xlab='',cex.lab=cex.lab)
+arrows(as.POSIXct(data2$datetime),(z$y[2,1,,1]/data2$epiVol*12)-docPoolSD/data2$epiVol*12,as.POSIXct(data2$datetime),
+       (z$y[2,1,,1]/data2$epiVol*12)+docPoolSD/data2$epiVol*12,code=3,length=0.1,angle=90,col='black',lwd=3)
+legend("topleft", legend=c("Estimated State","Ensemble Mean",'True State','Observed State'),
+       col=c('gray','gray30','black','black'),pt.bg=c('gray','gray30','black','black'), 
+       ncol=1,lwd=c(4,4,4,0),bty='n',lty=c(1,1,3,0),pt.cex = c(0,0,0,2),pch=c(0,0,0,16))
+DICout<-apply(Y[3,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+ylim=range(c(Y[3,1,,]/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12+dicPoolSD/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12-dicPoolSD/data2$epiVol*12),na.rm=T)
+plot(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=1.5,
+     ylab=expression(CO[2]~(mg~C~L^-1)),xlab='',cex.lab=cex.lab)
+for(i in 1:nEn){
+  lines(Y[3,1,(spinUpLength+1):nStep,i]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+        col='gray',ylab='',lwd=lwd)
+}
+lines(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=3,col='gray30')
+lines(true[5,1,,1]/data2$epiVol*12~as.POSIXct(data2$datetime),ylim = ylim,col='black',lwd=3,lty=6)
+par(new=T)
+plot(z$y[1,1,(spinUpLength+1):nStep,1]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),cex.axis=1.5,
+     ylim=ylim,col='black',pch=16,cex=cex,ylab=expression(CO[2]~(mg~C~L^-1)),xlab='',cex.lab=cex.lab)
+arrows(as.POSIXct(data2$datetime),(z$y[1,1,,1]/data2$epiVol*12)-dicPoolSD/data2$epiVol*12,as.POSIXct(data2$datetime),
+       (z$y[1,1,,1]/data2$epiVol*12)+dicPoolSD/data2$epiVol*12,code=3,length=0.1,angle=90,col='black',lwd=3)
+legend("topleft", legend=c("Estimated State","Ensemble Mean",'True State','Observed State'),
+       col=c('gray','gray30','black','black'),pt.bg=c('gray','gray30','black','black'), 
+       ncol=1,lwd=c(4,4,4,0),bty='n',lty=c(1,1,3,0),pt.cex = c(0,0,0,2),pch=c(0,0,0,16))
+dev.off()
+
+
+
+# Figure 3 
+png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig3_d20.png',
+    res=300, width=7, height=7, units = 'in')
+# windows()
+l_mar = 0.35
+b_mar = 0.1
+t_mar = 0.05
+r_mar= 0.05
+gapper = 0.15 # space between panels
+
+dSD0<-sd(Y[1,1,1,]) #initial sd in d20
+dSD<-apply(Y[1,1,,],MARGIN = 1,FUN=sd)
+dConverged<-dSD/dSD0 # fraction of initial sd
+cex=2
+lwd=2
+ylim=c(0.5,3)
+par(mar=c(5,6,4,2))
+rOut<-apply(Y[1,1,,],MARGIN = 1,FUN=mean)
+ylim=range(rFunc(Y[1,1,(spinUpLength+1):nStep,],data2$wtr[(spinUpLength+1):nStep]))
+ylim=c(0.00,0.015)
+plot(rOut[(spinUpLength+1):nStep]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+     type='l',ylim=ylim,ylab=expression(d[20]~(day^-1)),lwd=lwd,xlab='',cex.lab=cex,cex.axis=1.5)
+for(i in 1:nEn){
+  lines(Y[1,1,(spinUpLength+1):nStep,i]~
+          as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),col='gray',ylab='',lwd=lwd,xlab='')
+}
+lines(rOut[(spinUpLength+1):nStep]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),ylab='',lwd=3,col='gray30',
+      xlab='')
+# lines(rOut[dConverged<0.25]~as.POSIXct(data2$datetime[dConverged<0.25]),ylab='',lwd=lwd,col='red',
+#       xlab='')
+
+r20L<-true[2,1,,1]
+r20R<-true[1,1,,1]
+DOCoutL<-true[7,1,,1]
+DOCoutR<-true[6,1,,1]
+DOCoutT<-true[8,1,,1]
+fracLout<-DOCoutL/DOCoutT
+fracRout<-DOCoutR/DOCoutT
+r20All<-r20L*fracLout+r20R*fracRout
+cex=2
+lwd=3
+lines(r20All~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),col='black',lty=6,
+      type='l',ylim=ylim,ylab=expression(d[20]~(day^-1)),lwd=lwd,xlab='',cex.lab=cex,cex.axis=cex)
+legend("top", legend=c("Estimated d20","Ensemble Mean",'True d20'),
+       col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'), 
+       ncol=1,lwd=c(4,4,4),bty='n',lty=c(1,1,3))
+dev.off()
+
+
+windows()
+l_mar = 0.35
+b_mar = 0.1
+t_mar = 0.05
+r_mar= 0.05
+gapper = 0.15 # space between panels
+
+cex=2
+lwd=2
+ylim=c(0.5,3)
+par(mar=c(5,6,4,2),mfrow=c(1,2))
+DOCout<-apply(Y[4,1,,],MARGIN = 1,FUN=mean)
+ylim=range(c(Y[4,1,,],z$y[2,1,,1]+docPoolSD,z$y[2,1,,1]-docPoolSD),na.rm=T)
+plot(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=1.5,
+     ylab=expression(DOC~(mol~C)),xlab='',cex.lab=cex)
+for(i in 1:nEn){
+  lines(Y[4,1,(spinUpLength+1):nStep,i]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+        col='gray',ylab='',lwd=lwd)
+}
+lines(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=lwd)
+lines(true[8,1,,1]~as.POSIXct(data2$datetime),ylim = ylim,col='blue',lwd=2)
+par(new=T)
+plot(z$y[2,1,(spinUpLength+1):nStep,1]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),cex.axis=1.5,ylab=expression(DOC~(mol~C)),
+     ylim=ylim,col='red',pch=16,cex=cex,xlab='',cex.lab=cex)
+arrows(as.POSIXct(data2$datetime),(z$y[2,1,,1])-docPoolSD,as.POSIXct(data2$datetime),
+       (z$y[2,1,,1])+docPoolSD,code=3,length=0.1,angle=90,col='red',lwd=lwd)
+legend("topleft", legend=c("Estimated State","Ensemble Mean",'True State','Observed State'),
+       col=c('gray','black','blue','red'),pt.bg=c('gray','black','blue','red'), 
+       ncol=1,lwd=c(4,4,4,0),bty='n',lty=c(1,1,1,0),pt.cex = c(0,0,0,2),pch=c(0,0,0,16))
+DICout<-apply(Y[3,1,,],MARGIN = 1,FUN=mean)
+ylim=range(c(Y[3,1,,],z$y[1,1,,1]+dicPoolSD,z$y[1,1,,1]-dicPoolSD),na.rm=T)
+plot(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=1.5,
+     ylab=expression(CO[2]~(mol~C)),xlab='',cex.lab=cex)
+for(i in 1:nEn){
+  lines(Y[3,1,(spinUpLength+1):nStep,i]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+        col='gray',ylab='',lwd=lwd)
+}
+lines(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=lwd)
+lines(true[5,1,,1]~as.POSIXct(data2$datetime),ylim = ylim,col='blue',lwd=2)
+par(new=T)
+plot(z$y[1,1,(spinUpLength+1):nStep,1]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),cex.axis=1.5,
+     ylim=ylim,col='red',pch=16,cex=cex,ylab=expression(CO[2]~(mol~C)),xlab='',cex.lab=cex)
+arrows(as.POSIXct(data2$datetime),(z$y[1,1,,1])-dicPoolSD,as.POSIXct(data2$datetime),
+       (z$y[1,1,,1])+dicPoolSD,code=3,length=0.1,angle=90,col='red',lwd=lwd)
+legend("topleft", legend=c("Estimated State","Ensemble Mean",'True State','Observed State'),
+       col=c('gray','black','blue','red'),pt.bg=c('gray','black','blue','red'), 
+       ncol=1,lwd=c(4,4,4,0),bty='n',lty=c(1,1,1,0),pt.cex = c(0,0,0,2),pch=c(0,0,0,16))
+
+DOCout<-apply(Y[4,1,,],MARGIN = 1,FUN=mean)
+DOCpredictSD<-apply(Y[4,1,,],MARGIN = 1,FUN=sd)
+DOCout<-cbind(DOCout,z$y[2,1,(spinUpLength+1):nStep,1])
+DOCout<-cbind(DOCout,(true[8,1,,1]))
+DICout<-apply(Y[3,1,,],MARGIN = 1,FUN=mean)
+DICpredictSD<-apply(Y[3,1,,],MARGIN = 1,FUN=sd)
+DICout<-cbind(DICout,z$y[1,1,(spinUpLength+1):nStep,1])
+DICout<-cbind(DICout,(true[5,1,,1]))
+
+sqrt(mean((DOCout[,1]-DOCout[,2])^2,na.rm=T)) #RMSE mod-obs
+sqrt(mean((DOCout[,1]-DOCout[,3])^2,na.rm=T)) # RMSE mod-true 
+sqrt(mean((DOCout[,2]-DOCout[,3])^2,na.rm=T)) #RMSE obs-true
+
+sqrt(mean((DICout[,1]-DICout[,2])^2,na.rm=T)) #RMSE mod-obs
+sqrt(mean((DICout[,1]-DICout[,3])^2,na.rm=T)) # RMSE mod-true 
+sqrt(mean((DICout[,2]-DICout[,3])^2,na.rm=T)) #RMSE obs-true
+
+
+

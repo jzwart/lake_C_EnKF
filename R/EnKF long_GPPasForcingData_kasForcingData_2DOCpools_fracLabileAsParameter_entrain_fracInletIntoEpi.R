@@ -40,7 +40,7 @@ data2$dic[1]<-data2$dic[min(which(!is.na(data2$dic)))]
 data2$doc[1]<-data2$doc[min(which(!is.na(data2$doc)))]
 
 ## *********************** EnKF ***************************## Gao et al. 2011 is a useful reference 
-nEn<-100 # number of ensembles 
+nEn<-1000 # number of ensembles 
 nStep<-length(data2$datetime)
 
 # draws from priors to create ensemble 
