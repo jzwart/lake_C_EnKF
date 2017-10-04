@@ -103,8 +103,8 @@ dicSD<-(data2$dic/data2$epiVol)*0.1367684 # DIC concentration sd in mol C
 dicSD<-ifelse(is.na(dicSD),dicSD,dicSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22
 # dicSD<-ifelse(is.na(dicSD),dicSD,0.005)
 dicSD<-dicSD*dicSDadjust
-areaSD<-4000 # constant SD in m 
-depthSD<-0.25 # constant SD in m 
+areaSD<-000 # constant SD in m 
+depthSD<-0 # constant SD in m 
 
 H<-array(0,dim=c(2,2,nStep))
 # propogation of error for multiplication 
@@ -112,8 +112,20 @@ docPoolSD<-data2$doc*sqrt((docSD/(data2$doc/data2$epiVol))^2+(areaSD/data2$A0)^2
 dicPoolSD<-data2$dic*sqrt((dicSD/(data2$dic/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
 H[1,1,]<-dicPoolSD^2 #variance of DIC
 H[2,2,]<-docPoolSD^2 #variance of DOC 
+# H[1,1,]<-H[1,1,]/2
+# H[2,2,]<-H[2,2,]/2# docPoolSD^2 #variance of DOC
+
 H[1,1,]<-ifelse(is.na(H[1,1,]),mean(H[1,1,],na.rm=T),H[1,1,]) # taking care of na's in DIC; setting to mean of variance if NA 
 H[2,2,]<-ifelse(is.na(H[2,2,]),mean(H[2,2,],na.rm=T),H[2,2,]) # taking care of na's in DOC; setting to mean of variance if NA 
+# 
+# HH<-array(0,dim=c(8,8,nStep))
+# # propogation of error for multiplication 
+# docPoolSD<-data2$doc*sqrt((docSD/(data2$doc/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
+# dicPoolSD<-data2$dic*sqrt((dicSD/(data2$dic/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
+# HH[5,5,]<-dicPoolSD^2 #variance of DIC
+# HH[8,8,]<-docPoolSD^2 #variance of DOC 
+# HH[5,5,]<-ifelse(is.na(HH[5,5,]),mean(HH[5,5,],na.rm=T),HH[5,5,]) # taking care of na's in DIC; setting to mean of variance if NA 
+# HH[8,8,]<-ifelse(is.na(HH[8,8,]),mean(HH[8,8,],na.rm=T),HH[8,8,]) # taking care of na's in DOC; setting to mean of variance if NA 
 
 y=array(rbind(dicVec,docVec),dim=c(2,1,nStep))
 y=array(rep(y,nEn),dim=c(2,1,nStep,nEn)) # array of observations y[a,b,c,d]; where a=dic/doc, b=column, c=timeStep, and d=ensemble member 
@@ -134,9 +146,22 @@ for(i in 1:nStep){
   h[2,8,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) #doc total (we only have data on total DOC pool)
 }
 
-P <- array(0,dim=c(4,4,nStep))
+# operator matrix saying 1 if there is observation data available, 0 otherwise 
+h<-array(0,dim=c(2,9,nStep))
+for(i in 1:nStep){
+  h[1,6,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic 
+  h[2,9,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) #doc total (we only have data on total DOC pool)
+}
+# 
+# hh<-array(0,dim=c(8,8,nStep))
+# for(i in 1:nStep){
+#   hh[5,5,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic 
+#   hh[8,8,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) #doc total (we only have data on total DOC pool)
+# }
+
+P <- array(0,dim=c(5,5,nStep))
 S <- array(0,dim=c(4,4,nStep))
-PS <- array(0, dim=c(8,8,nStep))
+PS <- array(0, dim=c(9,9,nStep))
 
 #Define matrix C, parameters of covariates [2x6]
 C<-array(NA,dim=c(4,7,nStep,nEn)) # array of transition matrix C[a,b,c,d]; 
@@ -156,11 +181,12 @@ for(i in 1:nEn){
                       (data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainEpi[1]),ncol=1)
 }
 
-pars<-array(rep(NA,nEn),dim=c(4,1,nStep,nEn)) # parameters: r20
+pars<-array(rep(NA,nEn),dim=c(5,1,nStep,nEn)) # parameters: r20
 pars[1,1,1,]<-rVec
 pars[2,1,1,]<-rVec_fast
 pars[3,1,1,]<-fracVec
 pars[4,1,1,]<-fracInVec
+pars[5,1,1,]<-matrix(rnorm(100,1,50))
 
 # set up a list for all matrices 
 z=list(B=B,y=y,X=X,C=C,ut=ut,pars=pars)
@@ -170,23 +196,24 @@ i=1
 t=2
 
 # set up Y vector for which we concatonate parameters, states, and observed data 
-Y<-array(NA,c(8,1,nStep,nEn))
+Y<-array(NA,c(9,1,nStep,nEn))
 Y[1,1,1,]<-rVec # r20 parameter 
 Y[2,1,1,]<-rVec_fast # r20 labile parameter 
 Y[3,1,1,]<-fracVec # fraction labile of loaded DOC
 Y[4,1,1,]<-fracInVec # fraction of Inlet stream that goes into epi
-Y[5,1,1,]<-z$X[1,1,1,] # DIC state  
-Y[6,1,1,]<-z$X[2,1,1,] # DOC recalcitrant state  
-Y[7,1,1,]<-z$X[3,1,1,] # DOC labile state  
-Y[8,1,1,]<-z$X[4,1,1,] # DOC total state  
+Y[5,1,1,]<-pars[5,1,1,]# inflation factor 
+Y[6,1,1,]<-z$X[1,1,1,] # DIC state  
+Y[7,1,1,]<-z$X[2,1,1,] # DOC recalcitrant state  
+Y[8,1,1,]<-z$X[3,1,1,] # DOC labile state  
+Y[9,1,1,]<-z$X[4,1,1,] # DOC total state  
 
-
+covar_inflat_out<-c()
 #Iterate through time
 for(t in 2:nStep){
   for(i in 1:nEn){
     # Forecasting; need to update parameters, 
-    z$pars[1:4,1,t,i]<-Y[1:4,1,t-1,i] # r20
-    z$X[1:4,1,t-1,i]<-Y[5:8,1,t-1,i] # updating state variables from Y 
+    z$pars[1:5,1,t,i]<-Y[1:5,1,t-1,i] # r20
+    z$X[1:4,1,t-1,i]<-Y[6:9,1,t-1,i] # updating state variables from Y 
     
     #Predictions
     z$X[,,t,i]<-z$B[,,t-1,i]%*%z$X[,,t-1,i] + z$C[,,t-1,i]%*%z$ut[,,t-1,i] # forecasting state variable predictions 
@@ -209,13 +236,16 @@ for(t in 2:nStep){
              (data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],z$pars[4,1,t,i])))*data2$entrainEpi[t]),ncol=1)
     
     # forecast Y vector 
-    Y[1:4,1,t,i]<-Y[1:4,1,t-1,i] #r20, r20_fast, fraction labile loaded DOC parameters same as previous timestep
-    Y[5:8,1,t,i]<-z$X[1:4,1,t,i] #forecasted states 
+    Y[1:5,1,t,i]<-Y[1:5,1,t-1,i] #r20, r20_fast, fraction labile loaded DOC parameters same as previous timestep
+    Y[6:9,1,t,i]<-z$X[1:4,1,t,i] #forecasted states 
 
     } # end forecast for each ensemble for timestep t
     
     #begin data assimilation if there are any observations 
     if(any(!is.na(z$y[,,t,i]))==TRUE){ # update vector as long as there is one observation of state 
+      
+      # logging values to eliminate negatives 
+      
       
       #mean of vector Y for all ensembles at time step t 
       YMean<-matrix(apply(Y[,,t,],MARGIN = 1,FUN=mean),nrow=length(Y[,1,1,1]))
@@ -250,11 +280,17 @@ for(t in 2:nStep){
       
       # d_o_b <- yObs[,,1] - temp_h%*%Y[,,t,]
       
-      covar_inflat <- (sum(diag(d_o_b%*%t(d_o_b)*solve(H[,,t])))-sum(temp_h))/(sum(diag(h[,,t]%*%PS[,,t]%*%t(h[,,t])*solve(H[,,t]))))
+      # covar_inflat <- (sum(diag(d_o_b%*%t(d_o_b)*solve(H[,,t])))-sum(temp_h))/(sum(diag(h[,,t]%*%PS[,,t]%*%t(h[,,t])*solve(H[,,t]))))
       
-      # (t(d_o_b)%*%d_o_b-sum(diag(H[,,t])))/(sum(diag(h[,,t]%*%PS[,,t]%*%t(h[,,t]))))
+      # covar_inflat <- (sum(diag(d_o_b%*%t(d_o_b)*solve(H[,,t])))-sum(temp_h))/(sum(diag(h[,,t]%*%PS[,,t]%*%t(h[,,t])*solve(H[,,t]))))
+      
+      covar_inflat<-(t(d_o_b)%*%d_o_b-sum(diag(H[,,t])))/(sum(diag(h[,,t]%*%PS[,,t]%*%t(h[,,t]))))
+      
       
       # (t(d_o_b)%*%d_o_b-tr(H[,,t]))/(tr(temp_h%*%PS[,,t]%*%temp_h))
+      # (sum(diag(d_o_b%*%t(d_o_b)*solve(HH[,,t])))-sum(temp_h))/(sum(diag(hh[,,t]%*%PS[,,t]%*%t(hh[,,t])*solve(HH[,,t]))))
+      
+      # (t(d_o_b)%*%d_o_b-sum(diag(HH[,,t])))/(sum(diag(hh[,,t]%*%PS[,,t]%*%t(hh[,,t]))))
       
       
       # (t(d_o_b)%*%d_o_b-tr(H[,,t]))/(tr(temp_h%*%PS[,,t]%*%t(temp_h)))
@@ -264,10 +300,12 @@ for(t in 2:nStep){
       # d_o_b <- z$y
       # delta_Y<-Y[,,t,]-matrix(rep(YMean,nEn),nrow=length(Y[,1,1,1]))# difference in ensemble state and mean of all ensemble states 
       
+      covar_inflat <- mean(Y[5,1,t,])
+      covar_inflat_out <- rbind(covar_inflat_out,covar_inflat)
       
       
-      K<-((1/(nEn-1))*delta_Y%*%t(delta_Y)%*%t(h[,,t]))%*%
-        qr.solve(((1/(nEn-1))*h[,,t]%*%delta_Y%*%t(delta_Y)%*%t(h[,,t])+H[,,t]))   # Kalman gain 7x2 matrix; 7x3 if iota is included 
+      K<-((1/(nEn-1))*covar_inflat*delta_Y%*%t(delta_Y)%*%t(h[,,t]))%*%
+        qr.solve(((1/(nEn-1))*covar_inflat*h[,,t]%*%delta_Y%*%t(delta_Y)%*%t(h[,,t])+H[,,t]))   # Kalman gain 7x2 matrix; 7x3 if iota is included 
       
       # Y_b <- Y # background Y for covariance inflation 
       
@@ -280,6 +318,7 @@ for(t in 2:nStep){
       # 
       # (t(d_a_b)%*%d_o_b)/(tr(h[,,t]%*%PS[,,t]%*%t(h[,,t])))
       
+      PS[,,t] <- covar_inflat * PS[,,t]
       
       # checking for parameter convergence 
       parsMean<-matrix(apply(Y[1:length(z$pars[,1,1,1]),,t,],MARGIN = 1,FUN=mean),nrow=length(z$pars[,1,1,1]))
@@ -328,14 +367,18 @@ for(t in 2:nStep){
 
 } # End iteration
 
+
+windows()
+plot(covar_inflat_out,pch=16,cex=3)
+
 # 
 # # plotting ***************************************************
 windows()
-DOCout<-apply(Y[8,1,,],MARGIN = 1,FUN=mean)
-ylim=range(Y[8,1,,]/data2$epiVol*12)
+DOCout<-apply(Y[9,1,,],MARGIN = 1,FUN=mean)
+ylim=range(Y[9,1,,]/data2$epiVol*12)
 plot(DOCout/data2$epiVol*12,type='l',ylim=ylim,ylab='DOC mg/L')
 for(i in 1:nEn){
-  lines(Y[8,1,,i]/data2$epiVol*12,col='gray',ylab='')
+  lines(Y[9,1,,i]/data2$epiVol*12,col='gray',ylab='')
 }
 lines(DOCout/data2$epiVol*12,ylab='')
 par(new=T)
