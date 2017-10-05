@@ -103,8 +103,8 @@ dicSD<-(data2$dic/data2$epiVol)*0.1367684 # DIC concentration sd in mol C
 dicSD<-ifelse(is.na(dicSD),dicSD,dicSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22
 # dicSD<-ifelse(is.na(dicSD),dicSD,0.005)
 dicSD<-dicSD*dicSDadjust
-areaSD<-000 # constant SD in m 
-depthSD<-0 # constant SD in m 
+areaSD<-4000 # constant SD in m 
+depthSD<-0.25 # constant SD in m 
 
 H<-array(0,dim=c(2,2,nStep))
 # propogation of error for multiplication 
@@ -117,15 +117,6 @@ H[2,2,]<-docPoolSD^2 #variance of DOC
 
 H[1,1,]<-ifelse(is.na(H[1,1,]),mean(H[1,1,],na.rm=T),H[1,1,]) # taking care of na's in DIC; setting to mean of variance if NA 
 H[2,2,]<-ifelse(is.na(H[2,2,]),mean(H[2,2,],na.rm=T),H[2,2,]) # taking care of na's in DOC; setting to mean of variance if NA 
-# 
-# HH<-array(0,dim=c(8,8,nStep))
-# # propogation of error for multiplication 
-# docPoolSD<-data2$doc*sqrt((docSD/(data2$doc/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
-# dicPoolSD<-data2$dic*sqrt((dicSD/(data2$dic/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
-# HH[5,5,]<-dicPoolSD^2 #variance of DIC
-# HH[8,8,]<-docPoolSD^2 #variance of DOC 
-# HH[5,5,]<-ifelse(is.na(HH[5,5,]),mean(HH[5,5,],na.rm=T),HH[5,5,]) # taking care of na's in DIC; setting to mean of variance if NA 
-# HH[8,8,]<-ifelse(is.na(HH[8,8,]),mean(HH[8,8,],na.rm=T),HH[8,8,]) # taking care of na's in DOC; setting to mean of variance if NA 
 
 y=array(rbind(dicVec,docVec),dim=c(2,1,nStep))
 y=array(rep(y,nEn),dim=c(2,1,nStep,nEn)) # array of observations y[a,b,c,d]; where a=dic/doc, b=column, c=timeStep, and d=ensemble member 
@@ -152,12 +143,7 @@ for(i in 1:nStep){
   h[1,6,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic 
   h[2,9,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) #doc total (we only have data on total DOC pool)
 }
-# 
-# hh<-array(0,dim=c(8,8,nStep))
-# for(i in 1:nStep){
-#   hh[5,5,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic 
-#   hh[8,8,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) #doc total (we only have data on total DOC pool)
-# }
+
 
 P <- array(0,dim=c(5,5,nStep))
 S <- array(0,dim=c(4,4,nStep))
@@ -346,30 +332,10 @@ for(t in 2:nStep){
       }
       S[,,t]<-(1/(nEn-1))*statesTemp
       
-      # only vars for which there are obs covar martrix 
-      # PS_mean <- matrix(apply(Y[c(5,8),,t,],MARGIN = 1,FUN=mean),nrow=2)
-      # all_Y_matrix<-array(NA,dim=c(2,2,nEn))
-      # for(i in 1:nEn){
-      #   delta_all_Y<-(Y[c(5,8),1,t,i]-PS_mean)
-      #   all_Y_matrix[,,i]<-delta_all_Y%*%t(delta_all_Y)
-      # }
-      # all_Y_temp<-matrix(0,ncol=2,nrow=2)
-      # for(i in 1:nEn){
-      #   all_Y_temp<-all_Y_temp+all_Y_matrix[,,i]
-      # }
-      # PS[,,t]<-(1/(nEn-1))*all_Y_temp
-      
-      # covariance inflation 
-      # tr(h[,c(5,8),t]*PS[,,t]%*%h[,c(5,8),t])
-      
-      
     }
 
 } # End iteration
 
-
-windows()
-plot(covar_inflat_out,pch=16,cex=3)
 
 # 
 # # plotting ***************************************************
@@ -427,6 +393,15 @@ for(i in 1:nEn){
 lines(rOut,ylab='')
 
 windows()
+rOut<-apply(Y[5,1,,],MARGIN = 1,FUN=mean)
+ylim=range(Y[5,1,,])
+plot(rOut,type='l',ylim=ylim,ylab='frac Labile')
+for(i in 1:nEn){
+  lines(Y[5,1,,i],col='gray',ylab='')
+}
+lines(rOut,ylab='')
+
+windows()
 rOut<-apply(splitFunc(data2$epiDens,data2$streamDens,Y[4,1,,]),MARGIN = 1,FUN=mean)
 ylim=range(splitFunc(data2$epiDens,data2$streamDens,Y[4,1,,]))
 plot(rOut,type='l',ylim=ylim,ylab='frac Inlet Into Epi')
@@ -462,11 +437,11 @@ plot(S[4,1,])
 
 # plotting pools not concentration 
 windows()
-DOCout<-apply(Y[8,1,,],MARGIN = 1,FUN=mean)
-ylim=range(c(Y[8,1,,],z$y[2,1,,1]),na.rm=T)
+DOCout<-apply(Y[9,1,,],MARGIN = 1,FUN=mean)
+ylim=range(c(Y[9,1,,],z$y[2,1,,1]),na.rm=T)
 plot(DOCout,type='l',ylim=ylim,ylab='DOC mg/L')
 for(i in 1:nEn){
-  lines(Y[8,1,,i],col='gray',ylab='')
+  lines(Y[9,1,,i],col='gray',ylab='')
 }
 lines(DOCout,ylab='')
 par(new=T)
@@ -487,6 +462,15 @@ arrows(seq(1:nStep),z$y[1,1,,1]-dicPoolSD,seq(1:nStep),z$y[1,1,,1]+dicPoolSD,cod
 
 # DOC labile pool 
 windows()
+DOCout<-apply(Y[8,1,,],MARGIN = 1,FUN=mean)
+ylim=range(Y[8,1,,],na.rm=T)
+plot(DOCout,type='l',ylim=ylim,ylab='DOC mol')
+for(i in 1:nEn){
+  lines(Y[8,1,,i],col='gray',ylab='')
+}
+lines(DOCout,ylab='')
+# DOC Recalcitrant pool 
+windows()
 DOCout<-apply(Y[7,1,,],MARGIN = 1,FUN=mean)
 ylim=range(Y[7,1,,],na.rm=T)
 plot(DOCout,type='l',ylim=ylim,ylab='DOC mol')
@@ -494,24 +478,15 @@ for(i in 1:nEn){
   lines(Y[7,1,,i],col='gray',ylab='')
 }
 lines(DOCout,ylab='')
-# DOC Recalcitrant pool 
-windows()
-DOCout<-apply(Y[6,1,,],MARGIN = 1,FUN=mean)
-ylim=range(Y[6,1,,],na.rm=T)
-plot(DOCout,type='l',ylim=ylim,ylab='DOC mol')
-for(i in 1:nEn){
-  lines(Y[6,1,,i],col='gray',ylab='')
-}
-lines(DOCout,ylab='')
 # fraction labile pool 
 windows()
-DOCoutL<-apply(Y[7,1,,],MARGIN = 1,FUN=mean)
-DOCoutR<-apply(Y[6,1,,],MARGIN = 1,FUN=mean)
+DOCoutL<-apply(Y[8,1,,],MARGIN = 1,FUN=mean)
+DOCoutR<-apply(Y[7,1,,],MARGIN = 1,FUN=mean)
 fracLout<-DOCoutL/DOCoutR
 ylim=range(fracLout,na.rm=T)
 plot(fracLout,type='l',ylim=ylim,ylab='fraction labile pool')
 for(i in 1:nEn){
-  lines(Y[7,1,,i]/Y[6,1,,i],col='gray',ylab='')
+  lines(Y[8,1,,i]/Y[7,1,,i],col='gray',ylab='')
 }
 lines(fracLout,ylab='')
 
@@ -519,8 +494,8 @@ lines(fracLout,ylab='')
 windows()
 r20L<-apply(Y[2,1,,],MARGIN = 1,FUN=mean)
 r20R<-apply(Y[1,1,,],MARGIN = 1,FUN=mean)
-DOCoutL<-apply(Y[7,1,,],MARGIN = 1,FUN=mean)
-DOCoutR<-apply(Y[6,1,,],MARGIN = 1,FUN=mean)
+DOCoutL<-apply(Y[8,1,,],MARGIN = 1,FUN=mean)
+DOCoutR<-apply(Y[7,1,,],MARGIN = 1,FUN=mean)
 fracLout<-DOCoutL/DOCoutR
 r20All<-r20L*fracLout+r20R*(1-fracLout)
 ylim=range(r20All,na.rm=T)
@@ -528,7 +503,7 @@ ylim[1]<-0
 ylim[2]<-ylim[2]*1.3
 plot(r20All,type='l',ylim=ylim,ylab='r20 (emergent)')
 for(i in 1:nEn){
-  curFracLout<-Y[7,1,,i]/Y[6,1,,i]
+  curFracLout<-Y[8,1,,i]/Y[7,1,,i]
   curr20All<-Y[2,1,,i]*curFracLout+Y[1,1,,i]*(1-curFracLout)
   lines(curr20All,col='gray',ylab='')
 }
@@ -576,33 +551,33 @@ lines(r20All,ylab='')
 # 
 # # RMSE for states 
 windows()
-plot(sqrt((apply(Y[5,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[1,1,,1]/data2$epiVol*12)^2),
+plot(sqrt((apply(Y[6,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[1,1,,1]/data2$epiVol*12)^2),
      pch=16,ylab='DIC RMSE',type='o',xlab='time')
-summary(lm(sqrt((apply(Y[5,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[1,1,,1]/data2$epiVol*12)^2)~seq(1:nStep)))
+summary(lm(sqrt((apply(Y[6,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[1,1,,1]/data2$epiVol*12)^2)~seq(1:nStep)))
 windows()
-plot(sqrt((apply(Y[8,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[2,1,,1]/data2$epiVol*12)^2),
+plot(sqrt((apply(Y[9,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[2,1,,1]/data2$epiVol*12)^2),
      pch=16,ylab='DOC RMSE',type='o',xlab='time')
-summary(lm(sqrt((apply(Y[8,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[2,1,,1]/data2$epiVol*12)^2)~seq(1:nStep)))
+summary(lm(sqrt((apply(Y[9,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[2,1,,1]/data2$epiVol*12)^2)~seq(1:nStep)))
 
 # 
 # # mean RMSE for states 
-print(sqrt(mean((apply(Y[5,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[1,1,,1]/data2$epiVol*12)^2,na.rm=T)))
-print(sqrt(mean((apply(Y[8,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[2,1,,1]/data2$epiVol*12)^2,na.rm=T)))
+print(sqrt(mean((apply(Y[6,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[1,1,,1]/data2$epiVol*12)^2,na.rm=T)))
+print(sqrt(mean((apply(Y[9,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[2,1,,1]/data2$epiVol*12)^2,na.rm=T)))
 
-cor(apply(Y[5,1,!is.na(z$y[1,1,,1]),],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[1,1,,1])]*12,z$y[1,1,!is.na(z$y[1,1,,1]),1]/data2$epiVol[!is.na(z$y[1,1,,1])]*12)^2
-cor(apply(Y[8,1,!is.na(z$y[2,1,,1]),],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[2,1,,1])]*12,z$y[2,1,!is.na(z$y[2,1,,1]),1]/data2$epiVol[!is.na(z$y[2,1,,1])]*12)^2
+cor(apply(Y[6,1,!is.na(z$y[1,1,,1]),],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[1,1,,1])]*12,z$y[1,1,!is.na(z$y[1,1,,1]),1]/data2$epiVol[!is.na(z$y[1,1,,1])]*12)^2
+cor(apply(Y[9,1,!is.na(z$y[2,1,,1]),],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[2,1,,1])]*12,z$y[2,1,!is.na(z$y[2,1,,1]),1]/data2$epiVol[!is.na(z$y[2,1,,1])]*12)^2
 
 #bias 
-mean(apply(Y[5,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[1,1,,1]/data2$epiVol*12,na.rm = T)^2
-mean(apply(Y[8,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[2,1,,1]/data2$epiVol*12,na.rm=T)^2
+mean(apply(Y[6,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[1,1,,1]/data2$epiVol*12,na.rm = T)^2
+mean(apply(Y[9,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12-z$y[2,1,,1]/data2$epiVol*12,na.rm=T)^2
 
 # # mean RMSE for states; mol C 
-print(sqrt(mean((apply(Y[5,1,,],MARGIN = 1,FUN=mean)-z$y[1,1,,1])^2,na.rm=T)))
-print(sqrt(mean((apply(Y[8,1,,],MARGIN = 1,FUN=mean)-z$y[2,1,,1])^2,na.rm=T)))
+print(sqrt(mean((apply(Y[6,1,,],MARGIN = 1,FUN=mean)-z$y[1,1,,1])^2,na.rm=T)))
+print(sqrt(mean((apply(Y[9,1,,],MARGIN = 1,FUN=mean)-z$y[2,1,,1])^2,na.rm=T)))
 
 # r2; mol C 
-cor(apply(Y[5,1,!is.na(z$y[1,1,,1]),],MARGIN = 1,FUN=mean),z$y[1,1,!is.na(z$y[1,1,,1]),1])^2
-cor(apply(Y[8,1,!is.na(z$y[2,1,,1]),],MARGIN = 1,FUN=mean),z$y[2,1,!is.na(z$y[2,1,,1]),1])^2
+cor(apply(Y[6,1,!is.na(z$y[1,1,,1]),],MARGIN = 1,FUN=mean),z$y[1,1,!is.na(z$y[1,1,,1]),1])^2
+cor(apply(Y[9,1,!is.na(z$y[2,1,,1]),],MARGIN = 1,FUN=mean),z$y[2,1,!is.na(z$y[2,1,,1]),1])^2
 
 
 data2$HRT<-data2$epiVol/data2$waterLoad
@@ -684,12 +659,12 @@ cex=2
 lwd=2
 ylim=c(0.5,3)
 par(mar=c(5,6,4,2),mfrow=c(1,2))
-DOCout<-apply(Y[8,1,,],MARGIN = 1,FUN=mean)
-ylim=range(c(Y[8,1,,],z$y[2,1,,1]+docPoolSD,z$y[2,1,,1]-docPoolSD),na.rm=T)
+DOCout<-apply(Y[9,1,,],MARGIN = 1,FUN=mean)
+ylim=range(c(Y[9,1,,],z$y[2,1,,1]+docPoolSD,z$y[2,1,,1]-docPoolSD),na.rm=T)
 plot(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=1.5,
      ylab=expression(DOC~(mol~C)),xlab='',cex.lab=cex)
 for(i in 1:nEn){
-  lines(Y[8,1,(spinUpLength+1):nStep,i]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+  lines(Y[9,1,(spinUpLength+1):nStep,i]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
         col='gray',ylab='',lwd=lwd)
 }
 lines(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=lwd)
@@ -703,12 +678,12 @@ legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
        col=c('gray','black','red'),pt.bg=c('gray','black','red'),
        ncol=1,lwd=c(4,4,4),bty='n',lty=c(1,1,1))
 
-DICout<-apply(Y[5,1,,],MARGIN = 1,FUN=mean)
-ylim=range(c(Y[5,1,,],z$y[1,1,,1]+dicPoolSD,z$y[1,1,,1]-dicPoolSD),na.rm=T)
+DICout<-apply(Y[6,1,,],MARGIN = 1,FUN=mean)
+ylim=range(c(Y[6,1,,],z$y[1,1,,1]+dicPoolSD,z$y[1,1,,1]-dicPoolSD),na.rm=T)
 plot(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=1.5,
      ylab=expression(CO[2]~(mol~C)),xlab='',cex.lab=cex)
 for(i in 1:nEn){
-  lines(Y[5,1,(spinUpLength+1):nStep,i]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+  lines(Y[6,1,(spinUpLength+1):nStep,i]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
         col='gray',ylab='',lwd=lwd)
 }
 lines(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=lwd)
@@ -734,12 +709,12 @@ cex.lab=2
 lwd=2
 ylim=c(0.5,3)
 par(mar=c(5,6,4,2),mfrow=c(1,2))
-DOCout<-apply(Y[8,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
-ylim=range(c(Y[8,1,,]/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12+docPoolSD/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12-docPoolSD/data2$epiVol*12),na.rm=T)
+DOCout<-apply(Y[9,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+ylim=range(c(Y[9,1,,]/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12+docPoolSD/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12-docPoolSD/data2$epiVol*12),na.rm=T)
 plot(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=1.5,
      ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab)
 for(i in 1:nEn){
-  lines(Y[8,1,(spinUpLength+1):nStep,i]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+  lines(Y[9,1,(spinUpLength+1):nStep,i]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
         col='gray',ylab='',lwd=lwd)
 }
 lines(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=3,col='gray30')
@@ -753,12 +728,12 @@ legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
        col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),
        ncol=1,lwd=c(4,4,0),bty='n',lty=c(1,1,0),pt.cex = c(0,0,2),pch = c(0,0,16))
 
-DICout<-apply(Y[5,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
-ylim=range(c(Y[5,1,,]/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12+dicPoolSD/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12-dicPoolSD/data2$epiVol*12),na.rm=T)
+DICout<-apply(Y[6,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+ylim=range(c(Y[6,1,,]/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12+dicPoolSD/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12-dicPoolSD/data2$epiVol*12),na.rm=T)
 plot(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=1.5,
      ylab=expression(CO[2]~(mg~C~L^-1)),xlab='',cex.lab=cex.lab)
 for(i in 1:nEn){
-  lines(Y[5,1,(spinUpLength+1):nStep,i]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+  lines(Y[6,1,(spinUpLength+1):nStep,i]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
         col='gray',ylab='',lwd=lwd)
 }
 lines(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=3,col='gray30')
@@ -781,24 +756,24 @@ linInt$y[1,1,,1]<-approx(1:nStep,z$y[1,1,,1]/data2$epiVol[]*12,xout = 1:nStep)$y
 linInt$y[2,1,,1]<-approx(1:nStep,z$y[2,1,,1]/data2$epiVol[]*12,xout = 1:nStep)$y
 
 range(DICout[]/linInt$y[1,1,,1],na.rm = T)
-range(DICout[!as.numeric(h[1,5,])]/linInt$y[1,1,!as.numeric(h[1,5,]),1],na.rm = T)
-range(DICout[as.logical(h[1,5,])]/linInt$y[1,1,as.logical(h[1,5,]),1],na.rm = T)
+range(DICout[!as.numeric(h[1,6,])]/linInt$y[1,1,!as.numeric(h[1,6,]),1],na.rm = T)
+range(DICout[as.logical(h[1,6,])]/linInt$y[1,1,as.logical(h[1,6,]),1],na.rm = T)
 
 range(DOCout[]/linInt$y[2,1,,1],na.rm = T)
-range(DOCout[!as.numeric(h[2,8,])]/linInt$y[2,1,!as.numeric(h[2,8,]),1],na.rm = T)
-range(DOCout[as.logical(h[2,8,])]/linInt$y[2,1,as.logical(h[2,8,]),1],na.rm = T)
+range(DOCout[!as.numeric(h[2,9,])]/linInt$y[2,1,!as.numeric(h[2,9,]),1],na.rm = T)
+range(DOCout[as.logical(h[2,9,])]/linInt$y[2,1,as.logical(h[2,9,]),1],na.rm = T)
 
 #what if we only had bi-weekly obs
 linInt$y[1,1,,1]<-approx(1:nStep,z$y[1,1,,1]/data2$epiVol[]*12,xout = 1:nStep)$y
 linInt$y[2,1,,1]<-approx(1:nStep,z$y[2,1,,1]/data2$epiVol[]*12,xout = 1:nStep)$y
 
 range(DICout[]/linInt$y[1,1,,1],na.rm = T)
-range(DICout[!as.numeric(h[1,5,])]/linInt$y[1,1,!as.numeric(h[1,5,]),1],na.rm = T)
-range(DICout[as.logical(h[1,5,])]/linInt$y[1,1,as.logical(h[1,5,]),1],na.rm = T)
+range(DICout[!as.numeric(h[1,6,])]/linInt$y[1,1,!as.numeric(h[1,6,]),1],na.rm = T)
+range(DICout[as.logical(h[1,6,])]/linInt$y[1,1,as.logical(h[1,6,]),1],na.rm = T)
 
 range(DOCout[]/linInt$y[2,1,,1],na.rm = T)
-range(DOCout[!as.numeric(h[2,8,])]/linInt$y[2,1,!as.numeric(h[2,8,]),1],na.rm = T)
-range(DOCout[as.logical(h[2,8,])]/linInt$y[2,1,as.logical(h[2,8,]),1],na.rm = T)
+range(DOCout[!as.numeric(h[2,9,])]/linInt$y[2,1,!as.numeric(h[2,9,]),1],na.rm = T)
+range(DOCout[as.logical(h[2,9,])]/linInt$y[2,1,as.logical(h[2,9,]),1],na.rm = T)
 
 
 # # Figure 1 plotting concentration observed vs. predicted with error bars 
