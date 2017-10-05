@@ -44,14 +44,15 @@ nEn<-100 # number of ensembles
 nStep<-length(data2$datetime)
 
 # draws from priors to create ensemble 
-parGuess <- c(0.004,0.3,0.30,0.1) #r20; units: day-1; fraction labile of loaded DOC; fraction inlet that goes into epi; turnover rate parameters set constant frac labile estimated 
-min<-c(0.004,0.31,0.005,0.3)
-max<-c(0.004,0.31,0.5,0.5)
+parGuess <- c(0.004,0.3,0.30,0.1,1) #r20; units: day-1; fraction labile of loaded DOC; fraction inlet that goes into epi; turnover rate parameters set constant frac labile estimated 
+min<-c(0.004,0.31,0.005,0.3,-30)
+max<-c(0.004,0.31,0.5,0.5,30)
 
 rPDF<-abs(rnorm(n=nEn,mean = parGuess[1],sd = (max[1]-min[1])/5)) # max-min / 5 is rule of thumb sd; forcing positive for negative draws 
 rPDF_fast<-abs(rnorm(n=nEn,mean = parGuess[2],sd = (max[2]-min[2])/5))
 fracPDF<-abs(rnorm(n=nEn,mean=parGuess[3],sd=(max[3]-min[3])/5))
 fracInPDF<-abs(rnorm(n=nEn,mean=parGuess[4],sd=(max[4]-min[4])/5))
+covar_inflat_PDF <- rnorm(n=nEn, mean=parGuess[5], sd=(max[5]-min[5])/5)
 # fracInPDF<-rbeta(n = nEn,shape1 = 4,shape2 = 1)
 
 # setting up initial parameter values for all ensemble members 
@@ -59,7 +60,8 @@ rVec<-matrix(rPDF) # each row is an ensemble member
 rVec_fast<-matrix(rPDF_fast)
 fracVec<-matrix(fracPDF)
 fracInVec<-matrix(fracInPDF)
-hist(fracInVec)
+# hist(fracInVec)
+covar_inflat_vec <- matrix(covar_inflat_PDF)
 
 data2$entrainHypo<-as.numeric(data2$entrainVol<0)
 data2$entrainEpi<-as.numeric(data2$entrainVol>0)
@@ -130,12 +132,6 @@ X[2,1,1,]<-rnorm(n=nEn,y[2,1,1,]*(1-fracLabile0),sd=docPoolSD[1]*(1-fracLabile0)
 X[3,1,1,]<-rnorm(n=nEn,y[2,1,1,]*fracLabile0,sd=docPoolSD[1]*fracLabile0) # recalcitrant pool is 10% of initial DOC pool
 X[4,1,1,]<-X[2,1,1,]+X[3,1,1,] # recalcitrant pool + labile pool 
 
-# operator matrix saying 1 if there is observation data available, 0 otherwise 
-h<-array(0,dim=c(2,8,nStep))
-for(i in 1:nStep){
-  h[1,5,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic 
-  h[2,8,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) #doc total (we only have data on total DOC pool)
-}
 
 # operator matrix saying 1 if there is observation data available, 0 otherwise 
 h<-array(0,dim=c(2,9,nStep))
@@ -172,7 +168,7 @@ pars[1,1,1,]<-rVec
 pars[2,1,1,]<-rVec_fast
 pars[3,1,1,]<-fracVec
 pars[4,1,1,]<-fracInVec
-pars[5,1,1,]<-matrix(rnorm(100,1,50))
+pars[5,1,1,]<-covar_inflat_vec
 
 # set up a list for all matrices 
 z=list(B=B,y=y,X=X,C=C,ut=ut,pars=pars)
@@ -193,7 +189,6 @@ Y[7,1,1,]<-z$X[2,1,1,] # DOC recalcitrant state
 Y[8,1,1,]<-z$X[3,1,1,] # DOC labile state  
 Y[9,1,1,]<-z$X[4,1,1,] # DOC total state  
 
-covar_inflat_out<-c()
 #Iterate through time
 for(t in 2:nStep){
   for(i in 1:nEn){
@@ -246,65 +241,16 @@ for(t in 2:nStep){
       yObs[2,1,]<-z$y[2,1,t,1] #DOC obs
       yObs[,,]<-ifelse(is.na(yObs[,,]),0,yObs[,,])
       
-      # only vars for which there are obs covar martrix 
-      PS_mean <- matrix(apply(Y[,,t,],MARGIN = 1,FUN=mean),nrow=nrow(Y))
-      all_Y_matrix<-array(NA,dim=c(nrow(Y),nrow(Y),nEn))
-      for(i in 1:nEn){
-        delta_all_Y<-(Y[,1,t,i]-PS_mean)
-        all_Y_matrix[,,i]<-delta_all_Y%*%t(delta_all_Y)
-      }
-      all_Y_temp<-matrix(0,ncol=nrow(Y),nrow=nrow(Y))
-      for(i in 1:nEn){
-        all_Y_temp<-all_Y_temp+all_Y_matrix[,,i]
-      }
-      PS[,,t]<-(1/(nEn-1))*all_Y_temp
-      
-      #difference between obs and forecast at time step t; look at Li et al. 2009 and Miyoshi et al. 2011 
-      d_o_b <- yObs[,,1] - h[,,t]%*%YMean
-      # d_o_b <- yObs[,,1] - h[,,t]%*%Y[,,t,]
-      temp_h <- h[1,,t]+h[2,,t] # 1 x n vector of the observation operator
-      
-      # d_o_b <- yObs[,,1] - temp_h%*%Y[,,t,]
-      
-      # covar_inflat <- (sum(diag(d_o_b%*%t(d_o_b)*solve(H[,,t])))-sum(temp_h))/(sum(diag(h[,,t]%*%PS[,,t]%*%t(h[,,t])*solve(H[,,t]))))
-      
-      # covar_inflat <- (sum(diag(d_o_b%*%t(d_o_b)*solve(H[,,t])))-sum(temp_h))/(sum(diag(h[,,t]%*%PS[,,t]%*%t(h[,,t])*solve(H[,,t]))))
-      
-      covar_inflat<-(t(d_o_b)%*%d_o_b-sum(diag(H[,,t])))/(sum(diag(h[,,t]%*%PS[,,t]%*%t(h[,,t]))))
-      
-      
-      # (t(d_o_b)%*%d_o_b-tr(H[,,t]))/(tr(temp_h%*%PS[,,t]%*%temp_h))
-      # (sum(diag(d_o_b%*%t(d_o_b)*solve(HH[,,t])))-sum(temp_h))/(sum(diag(hh[,,t]%*%PS[,,t]%*%t(hh[,,t])*solve(HH[,,t]))))
-      
-      # (t(d_o_b)%*%d_o_b-sum(diag(HH[,,t])))/(sum(diag(hh[,,t]%*%PS[,,t]%*%t(hh[,,t]))))
-      
-      
-      # (t(d_o_b)%*%d_o_b-tr(H[,,t]))/(tr(temp_h%*%PS[,,t]%*%t(temp_h)))
-      # 
-      # 
-      # 
-      # d_o_b <- z$y
-      # delta_Y<-Y[,,t,]-matrix(rep(YMean,nEn),nrow=length(Y[,1,1,1]))# difference in ensemble state and mean of all ensemble states 
-      
+
       covar_inflat <- mean(Y[5,1,t,])
-      covar_inflat_out <- rbind(covar_inflat_out,covar_inflat)
-      
-      
+
       K<-((1/(nEn-1))*covar_inflat*delta_Y%*%t(delta_Y)%*%t(h[,,t]))%*%
         qr.solve(((1/(nEn-1))*covar_inflat*h[,,t]%*%delta_Y%*%t(delta_Y)%*%t(h[,,t])+H[,,t]))   # Kalman gain 7x2 matrix; 7x3 if iota is included 
-      
-      # Y_b <- Y # background Y for covariance inflation 
       
       # update Y vector 
       for(i in 1:nEn){
         Y[,,t,i]<-Y[,,t,i]+K%*%(yObs[,,i]-h[,,t]%*%Y[,,t,i])
       }
-      
-      # d_a_b <- apply(h[,,t]%*%Y[,,t,] - h[,,t]%*%Y_b[,,t,], MARGIN = 1, FUN = mean)
-      # 
-      # (t(d_a_b)%*%d_o_b)/(tr(h[,,t]%*%PS[,,t]%*%t(h[,,t])))
-      
-      PS[,,t] <- covar_inflat * PS[,,t]
       
       # checking for parameter convergence 
       parsMean<-matrix(apply(Y[1:length(z$pars[,1,1,1]),,t,],MARGIN = 1,FUN=mean),nrow=length(z$pars[,1,1,1]))
@@ -395,7 +341,7 @@ lines(rOut,ylab='')
 windows()
 rOut<-apply(Y[5,1,,],MARGIN = 1,FUN=mean)
 ylim=range(Y[5,1,,])
-plot(rOut,type='l',ylim=ylim,ylab='frac Labile')
+plot(rOut,type='l',ylim=ylim,ylab='covariance inflation')
 for(i in 1:nEn){
   lines(Y[5,1,,i],col='gray',ylab='')
 }
@@ -695,23 +641,27 @@ arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep]),z$y[1,1,(spinUpLength+1)
        code=3,length=0.1,angle=90,col='red',lwd=lwd)
 # dev.off()
 # 
-# # Figure 1 plotting concentration 
-png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig2_DOC_CO2_concentration.png',
-    res=300, width=14, height=7, units = 'in')
+# # Figure 2 plotting concentration 
+###############
+png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig2_all.png',
+    res=300, width=14, height=21, units = 'in')
 l_mar = 0.35
 b_mar = 0.1
 t_mar = 0.05
 r_mar= 0.05
 gapper = 0.15 # space between panels
+leg = 0.05 # distance from corner for panel label 
 
-cex=2.5
-cex.lab=2
-lwd=2
+cex=4
+cex.lab=3
+cex.axis=2
+lwd=3
 ylim=c(0.5,3)
-par(mar=c(5,6,4,2),mfrow=c(1,2))
+xlim=range(as.POSIXct(data2$datetime[spinUpLength+1:nStep]))
+par(mar=c(5,7,4,2),mfrow=c(3,2))
 DOCout<-apply(Y[9,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
 ylim=range(c(Y[9,1,,]/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12+docPoolSD/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12-docPoolSD/data2$epiVol*12),na.rm=T)
-plot(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=1.5,
+plot(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=cex.axis,
      ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab)
 for(i in 1:nEn){
   lines(Y[9,1,(spinUpLength+1):nStep,i]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
@@ -720,17 +670,18 @@ for(i in 1:nEn){
 lines(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=3,col='gray30')
 par(new=T)
 plot(z$y[2,1,(spinUpLength+1):nStep,1]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),cex=cex,
-     ylim=ylim,col='black',pch=16,ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab,cex.axis=1.5)
+     ylim=ylim,col='black',pch=16,ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab,cex.axis=cex.axis)
 arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep]),z$y[2,1,(spinUpLength+1):nStep,1]/data2$epiVol*12-docPoolSD[(spinUpLength+1):nStep]/data2$epiVol*12,
        as.POSIXct(data2$datetime[spinUpLength+1:nStep]),z$y[2,1,(spinUpLength+1):nStep,1]/data2$epiVol*12+docPoolSD[(spinUpLength+1):nStep]/data2$epiVol*12,
        code=3,length=0.1,angle=90,col='black',lwd=3)
 legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
-       col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),
+       col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),cex = cex.axis,
        ncol=1,lwd=c(4,4,0),bty='n',lty=c(1,1,0),pt.cex = c(0,0,2),pch = c(0,0,16))
+text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'A', cex = cex.lab)
 
 DICout<-apply(Y[6,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
 ylim=range(c(Y[6,1,,]/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12+dicPoolSD/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12-dicPoolSD/data2$epiVol*12),na.rm=T)
-plot(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=1.5,
+plot(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=cex.axis,
      ylab=expression(CO[2]~(mg~C~L^-1)),xlab='',cex.lab=cex.lab)
 for(i in 1:nEn){
   lines(Y[6,1,(spinUpLength+1):nStep,i]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
@@ -739,15 +690,148 @@ for(i in 1:nEn){
 lines(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=3,col='gray30')
 par(new=T)
 plot(z$y[1,1,(spinUpLength+1):nStep,1]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),cex=cex,
-     ylim=ylim,col='black',pch=16,ylab=expression(CO[2]~(mg~C~L^-1)),xlab='',cex.lab=cex.lab,cex.axis=1.5)
+     ylim=ylim,col='black',pch=16,ylab=expression(CO[2]~(mg~C~L^-1)),xlab='',cex.lab=cex.lab,cex.axis=cex.axis)
 arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep]),z$y[1,1,(spinUpLength+1):nStep,1]/data2$epiVol*12-dicPoolSD[(spinUpLength+1):nStep]/data2$epiVol*12,
        as.POSIXct(data2$datetime[spinUpLength+1:nStep]),z$y[1,1,(spinUpLength+1):nStep,1]/data2$epiVol*12+dicPoolSD[(spinUpLength+1):nStep]/data2$epiVol*12,
        code=3,length=0.1,angle=90,col='black',lwd=3)
 legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
-       col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),
+       col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),cex = cex.axis,
        ncol=1,lwd=c(4,4,0),bty='n',lty=c(1,1,0),pt.cex = c(0,0,2),pch = c(0,0,16))
+text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'B', cex = cex.lab)
+
+# turnover rate 
+l_mar = 0.35
+b_mar = 0.1
+t_mar = 0.05
+r_mar= 0.05
+gapper = 0.15 # space between panels
+
+r20L<-apply(rFunc(Y[2,1,,],data2$epiTemp),MARGIN = 1,FUN=mean)
+r20R<-apply(rFunc(Y[1,1,,],data2$epiTemp),MARGIN = 1,FUN=mean)
+DOCoutL<-apply(Y[8,1,,],MARGIN = 1,FUN=mean)
+DOCoutR<-apply(Y[7,1,,],MARGIN = 1,FUN=mean)
+DOCoutT<-apply(Y[9,1,,],MARGIN = 1,FUN=mean)
+fracLout<-DOCoutL/DOCoutT
+fracRout<-DOCoutR/DOCoutT
+r20All<-r20L*fracLout+r20R*fracRout
+ylim=range(rFunc(Y[2,1,,],data2$epiTemp)*(Y[8,1,,]/Y[9,1,,])+rFunc(Y[1,1,,],data2$epiTemp)*(Y[7,1,,]/Y[9,1,,]))
+ylim[1]=0.001
+par(mar=c(5,7,4,2))
+plot(r20All~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+     type='l',ylim=ylim,ylab=expression(d~(day^-1)),lwd=lwd,xlab='',cex.lab=cex,cex.axis=cex.axis)
+for(i in 1:nEn){
+  curFracLout<-Y[8,1,,i]/Y[9,1,,i]
+  curFracRout<-Y[7,1,,i]/Y[9,1,,i]
+  curr20All<-rFunc(Y[2,1,,i],data2$epiTemp)*curFracLout+rFunc(Y[1,1,,i],data2$epiTemp)*curFracRout
+  lines(curr20All,col='gray',ylab='')
+  lines(curr20All~
+          as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),col='gray',ylab='',lwd=lwd,xlab='')
+}
+lines(r20All~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),ylab='',lwd=lwd,col='gray30',
+      xlab='')
+legend("topright", legend=c("d Estimate","Ensemble Mean"),
+       col=c('gray','gray30'),pt.bg=c('gray','gray30'),cex = cex.axis,
+       ncol=1,lwd=c(4,4),bty='n',lty=c(1,1),pt.cex = c(0,0),pch = c(0,0))
+text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'C', cex = cex.lab)
+
+# d 20 
+l_mar = 0.35
+b_mar = 0.1
+t_mar = 0.05
+r_mar= 0.05
+gapper = 0.15 # space between panels
+
+r20L<-apply(Y[2,1,,],MARGIN = 1,FUN=mean)
+r20R<-apply(Y[1,1,,],MARGIN = 1,FUN=mean)
+DOCoutL<-apply(Y[8,1,,],MARGIN = 1,FUN=mean)
+DOCoutR<-apply(Y[7,1,,],MARGIN = 1,FUN=mean)
+DOCoutT<-apply(Y[9,1,,],MARGIN = 1,FUN=mean)
+fracLout<-DOCoutL/DOCoutT
+fracRout<-DOCoutR/DOCoutT
+r20All<-r20L*fracLout+r20R*fracRout
+ylim=range(rFunc(Y[2,1,,],data2$epiTemp)*(Y[8,1,,]/Y[9,1,,])+rFunc(Y[1,1,,],data2$epiTemp)*(Y[7,1,,]/Y[9,1,,]))
+ylim[1]=0.001
+par(mar=c(5,7,4,7))
+rOut<-apply(Y[1,1,,],MARGIN = 1,FUN=mean)
+plot(r20All~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+     type='l',ylim=ylim,ylab=expression(d[20]~(day^-1)),lwd=lwd,xlab='',cex.lab=cex,cex.axis=cex.axis)
+for(i in 1:nEn){
+  curFracLout<-Y[8,1,,i]/Y[9,1,,i]
+  curFracRout<-Y[7,1,,i]/Y[9,1,,i]
+  curr20All<-Y[2,1,,i]*curFracLout+Y[1,1,,i]*curFracRout
+  lines(curr20All,col='gray',ylab='')
+  lines(curr20All~
+          as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),col='gray',ylab='',lwd=lwd,xlab='')
+}
+lines(r20All~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),ylab='',lwd=lwd,col='gray30',
+      xlab='')
+par(new=T)
+plot(data2$docIn[(spinUpLength+1):nStep]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),type='l',lwd=4,
+     col='black',yaxt='n',xaxt='n',ylab='',xlab='',lty=6)
+axis(4,cex.axis=cex.axis)
+mtext(expression(loadDOC~(mol~C~day^-1)),4,line = 5,cex=2)
+legend("topleft", legend=c("d20 Estimate",'d20 Ensemble Mean','DOC loading'),
+       col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),cex = cex.axis,
+       ncol=1,lwd=c(4,4,4),bty='n',lty=c(1,1,3))
+text(x=xlim[2]-.01*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'D', cex = cex.lab)
+
+l_mar = 0.35
+b_mar = 0.1
+t_mar = 0.05
+r_mar= 0.05
+gapper = 0.15 # space between panels
+
+dSD0<-sd(Y[3,1,1,]) #initial sd in d20
+dSD<-apply(Y[3,1,,],MARGIN = 1,FUN=sd)
+dConverged<-dSD/dSD0 # fraction of initial sd
+par(mar=c(5,6,4,2))
+rOut<-apply(Y[3,1,,],MARGIN = 1,FUN=mean)
+ylim=range(Y[3,1,,])
+plot(rOut~as.POSIXct(data2$datetime),
+     type='l',ylim=ylim,ylab=expression(fracLabile),lwd=lwd,xlab='',cex.lab=cex,cex.axis=cex.axis)
+for(i in 1:nEn){
+  lines(Y[3,1,,i]~as.POSIXct(data2$datetime),col='gray',ylab='',lwd=lwd,xlab='')
+}
+lines(rOut~as.POSIXct(data2$datetime),ylab='',lwd=lwd,col='gray30',xlab='')
+legend("topright", legend=c("fracLabile Estimate","Ensemble Mean"),
+       col=c('gray','gray30'),pt.bg=c('gray','gray30'),cex = cex.axis,
+       ncol=1,lwd=c(4,4),bty='n',lty=c(1,1),pt.cex = c(0,0),pch = c(0,0))
+text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'E', cex = cex.lab)
+
+
+l_mar = 0.35
+b_mar = 0.1
+t_mar = 0.05
+r_mar= 0.05
+gapper = 0.15 # space between panels
+
+par(mar=c(5,7,4,2))
+DOCout<-apply(Y[9,1,,],MARGIN = 1,FUN=mean)
+DOCpredictSD<-apply(Y[9,1,,],MARGIN = 1,FUN=sd)
+DOCcv<-DOCpredictSD/DOCout
+DOCcv<-cbind(DOCcv,docPoolSD/z$y[2,1,,1])
+DICout<-apply(Y[6,1,,],MARGIN = 1,FUN=mean)
+DICpredictSD<-apply(Y[6,1,,],MARGIN = 1,FUN=sd)
+DICcv<-DICpredictSD/DICout
+DICcv<-cbind(DICcv,dicPoolSD/dicSDadjust/z$y[1,1,,1])
+ylim=range(c(na.omit(DOCcv),na.omit(DICcv)),na.rm=T)
+
+plot(DOCcv[,1]~as.POSIXct(data2$datetime),ylim=ylim,cex=cex,cex.axis=cex.axis,pch=16,type='l',lwd=lwd,
+     ylab=expression(CV~DOC~and~CO[2]~(mol~C)),cex.lab=cex,xlab='')
+lines(DICcv[,1]~as.POSIXct(data2$datetime),ylim=ylim,cex=cex,cex.axis=cex.axis,pch=16,type='l',lwd=lwd,col='gray60')
+points(DOCcv[,2]~as.POSIXct(data2$datetime),pch=16,cex=cex)
+points(DICcv[,2]~as.POSIXct(data2$datetime),pch=16,cex=cex,col='gray60')
+legend("topright", legend=c("DA DOC CV",'DA CO2 CV','Obs DOC CV','Obs CO2 CV'),
+       col=c('black','gray60','black','gray60'),pt.bg=c('black','gray60','black','gray60'),cex = cex.axis,
+       ncol=1,lwd=c(4,4,0,0),bty='n',lty=c(1,1,0,0),pt.cex = c(0,0,2,2),pch=c(0,0,16,16))
+text(x=xlim[2]-.01*(xlim[2]-xlim[1]),y = ylim[1]+.01*(ylim[2]-ylim[1]),labels = 'F', cex = cex.lab)
+
 dev.off()
-# 
+# ##############
+
+
+DOCout<-apply(Y[9,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+DICout<-apply(Y[6,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
 
 # how much CO2 missed due to linear interpolation? between obs time point 6 & 7 
 linInt=z
