@@ -416,6 +416,16 @@ hist(fracInVec)
   cor(apply(Y[4,1,!is.na(z$y[1,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean),z$y[1,1,!is.na(z$y[1,1,,1])&assim_obs==0,1])^2
   cor(apply(Y[5,1,!is.na(z$y[2,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean),z$y[2,1,!is.na(z$y[2,1,,1])&assim_obs==0,1])^2
   
+  # AIC CO2
+  fit = apply(Y[4,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12
+  obs = z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
+  AIC(logLik(lm(obs~fit)))
+  
+  # AIC DOC 
+  fit = apply(Y[5,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12
+  obs = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
+  AIC(logLik(lm(obs~fit)))
+  
 # range of mean d across run 
 range(apply(Y[1,1,,],MARGIN = 1,FUN=mean))
 

@@ -530,6 +530,15 @@ print(sqrt(mean((apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean)-z$y[2,1,assim_o
 cor(apply(Y[6,1,!is.na(z$y[1,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean),z$y[1,1,!is.na(z$y[1,1,,1])&assim_obs==0,1])^2
 cor(apply(Y[9,1,!is.na(z$y[2,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean),z$y[2,1,!is.na(z$y[2,1,,1])&assim_obs==0,1])^2
 
+# AIC CO2
+fit = apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12
+obs = z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
+AIC(logLik(lm(obs~fit)))
+
+# AIC DOC 
+fit = apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12
+obs = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
+AIC(logLik(lm(obs~fit)))
 
 data2$HRT<-data2$epiVol/data2$waterLoad
 data2$HRT<-ifelse(is.infinite(data2$HRT),data2$epiVol/data2$waterLoss,data2$HRT)

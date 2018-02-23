@@ -1,6 +1,6 @@
 # JAZ 2016-12-11 
 
-dir<-'/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Results/Results_20170319/'
+dir<-'/Users/jzwart/LakeCarbonEnKF/Data/CRC/'
 files<-list.files(dir)
 
 models<-data.frame()
@@ -301,7 +301,7 @@ png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DOC_RMSE
 # abline(0,0,lty=2,lwd=4,col='black')
 # box('plot',lwd=2)
 # axis(1, at=bp.at, labels=c(3,4,5,6,7,8,9,10),cex.axis=cex)
-p <- ggplot(models[models$obs==1,], aes(x=as.character(modelNumber), y=obsMinusMdfDOC)) + 
+p <- ggplot(models[models$obs==1,], aes(x=as.character(modelNumber), y=obsMinusMdfDOC)) + ylim(low=-3,high=2) + 
   geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Model), y = expression(Obs~DOC~RMSE~-~DA~DOC~RMSE))
 p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
   scale_x_discrete(limits=as.character(unique(models$modelNumber)))+
@@ -332,7 +332,7 @@ png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DIC_RMSE
 # abline(0,0,lty=2,lwd=4,col='black')
 # box('plot',lwd=2)
 # axis(1, at=bp.at, labels=c(3,4,5,6,7,8,9,10),cex.axis=cex)
-p <- ggplot(models[models$obs==1,], aes(x=as.character(modelNumber), y=obsMinusMdfDIC)) + 
+p <- ggplot(models[models$obs==1,], aes(x=as.character(modelNumber), y=obsMinusMdfDIC)) + ylim(low=-.3,high=.2) + 
   geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Model), y = expression(Obs~CO[2]~RMSE~-~DA~CO[2]~RMSE))
 p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
   scale_x_discrete(limits=as.character(unique(models$modelNumber)))+

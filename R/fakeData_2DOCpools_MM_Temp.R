@@ -220,7 +220,7 @@ true<-Y
 obs<-seq(.5,2,.5) # adjustment factor for observation error 
 freq<-seq(1,61,5) # frequency of observations 
 reps<-seq(1,9,2) # number of replicate sampling 
-n<-3 # number of times to run MDF to account for random sampling 
+n<-1 # number of times to run MDF to account for random sampling 
 
 rmseOut<-data.frame()
 
@@ -354,5 +354,20 @@ rmseOutZ$reps<-(rmseOutZ$reps-mean(rmseOutZ$reps))/sd(rmseOutZ$reps)
 
 summary(lm(rmseOutZ$DOCrmse~rmseOutZ$obs*rmseOutZ$freq*rmseOutZ$reps))
 summary(lm(rmseOutZ$DICrmse~rmseOutZ$obs*rmseOutZ$freq*rmseOutZ$reps))
+
+
+
+
+twoDOCpools_MM_TempOut<-twoDOCpools_MM_Temp(obs = 1,freq = 28,reps = 10,rVec_slow = starting$rVec_slow,rVec_fast = starting$rVec_fast,
+                                                    fracVec = starting$fracVec,fracInVec = starting$fracInVec,covar_inflat_vec = starting$covar_inflat_vec,n=n)
+
+
+
+
+
+
+
+
+
 
 
