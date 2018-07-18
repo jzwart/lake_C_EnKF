@@ -4,16 +4,9 @@
 
 ###################
 #Run Kalman filter
-rm(list=ls())
-# load('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/R Data/EnKF_LongData_20161218.RData')
-load('/Users/jzwart/LakeCarbonEnKF/Data/EnKF_LongData_20170223.RData')
+load('Data/EnKF_LongData_20170223.RData')
 
-splitFunc<-function(epiDens,streamDens,fracIn){ # function that tells how much load goes into epi 
-  fracInEpi=exp(-fracIn*(streamDens-epiDens))
-  return(fracInEpi)
-}
-
-splitFunc<-function(epiDens,streamDens,fracIn){ # function that tells how much load goes into epi 
+splitFunc<-function(epiDens,streamDens,fracIn){ # not based on density difference between, just fraction split
   fracInEpi=exp(-fracIn*(streamDens-epiDens))
   return(fracIn)
 }
@@ -657,7 +650,7 @@ arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep]),z$y[1,1,(spinUpLength+1)
 # 
 # # Figure 2 plotting concentration 
 ###############
-png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig2_all.png',
+png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig2_all_rev1.png',
     res=300, width=14, height=21, units = 'in')
 l_mar = 0.35
 b_mar = 0.1
@@ -683,10 +676,16 @@ for(i in 1:nEn){
 }
 lines(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=3,col='gray30')
 par(new=T)
-plot(z$y[2,1,(spinUpLength+1):nStep,1]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),cex=cex,
-     ylim=ylim,col='black',pch=16,ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab,cex.axis=cex.axis)
-arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep]),z$y[2,1,(spinUpLength+1):nStep,1]/data2$epiVol*12-docPoolSD[(spinUpLength+1):nStep]/data2$epiVol*12,
-       as.POSIXct(data2$datetime[spinUpLength+1:nStep]),z$y[2,1,(spinUpLength+1):nStep,1]/data2$epiVol*12+docPoolSD[(spinUpLength+1):nStep]/data2$epiVol*12,
+plot(z$y[2,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep&assim_obs==0]),cex=cex,
+     ylim=ylim,col='black',pch=21,ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab,cex.axis=cex.axis,xlim=xlim)
+arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==0]),z$y[2,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12-docPoolSD[(spinUpLength+1):nStep&assim_obs==0]/data2$epiVol[assim_obs==0]*12,
+       as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==0]),z$y[2,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+docPoolSD[(spinUpLength+1):nStep&assim_obs==0]/data2$epiVol[assim_obs==0]*12,
+       code=3,length=0.1,angle=90,col='black',lwd=3)
+par(new=T)
+plot(z$y[2,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep&assim_obs==1]),cex=cex,
+     ylim=ylim,col='black',pch=16,ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab,cex.axis=cex.axis,xlim=xlim)
+arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==1]),z$y[2,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12-docPoolSD[(spinUpLength+1):nStep&assim_obs==1]/data2$epiVol[assim_obs==1]*12,
+       as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==1]),z$y[2,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12+docPoolSD[(spinUpLength+1):nStep&assim_obs==1]/data2$epiVol[assim_obs==1]*12,
        code=3,length=0.1,angle=90,col='black',lwd=3)
 legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
        col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),cex = cex.axis,
@@ -703,10 +702,16 @@ for(i in 1:nEn){
 }
 lines(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=3,col='gray30')
 par(new=T)
-plot(z$y[1,1,(spinUpLength+1):nStep,1]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),cex=cex,
-     ylim=ylim,col='black',pch=16,ylab=expression(CO[2]~(mg~C~L^-1)),xlab='',cex.lab=cex.lab,cex.axis=cex.axis)
-arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep]),z$y[1,1,(spinUpLength+1):nStep,1]/data2$epiVol*12-dicPoolSD[(spinUpLength+1):nStep]/data2$epiVol*12,
-       as.POSIXct(data2$datetime[spinUpLength+1:nStep]),z$y[1,1,(spinUpLength+1):nStep,1]/data2$epiVol*12+dicPoolSD[(spinUpLength+1):nStep]/data2$epiVol*12,
+plot(z$y[1,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep&assim_obs==0]),cex=cex,
+     ylim=ylim,col='black',pch=21,ylab = '',xlab='',cex.lab=cex.lab,cex.axis=cex.axis,xlim=xlim)
+arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==0]),z$y[1,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12-dicPoolSD[(spinUpLength+1):nStep&assim_obs==0]/data2$epiVol[assim_obs==0]*12,
+       as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==0]),z$y[1,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+dicPoolSD[(spinUpLength+1):nStep&assim_obs==0]/data2$epiVol[assim_obs==0]*12,
+       code=3,length=0.1,angle=90,col='black',lwd=3)
+par(new=T)
+plot(z$y[1,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep&assim_obs==1]),cex=cex,
+     ylim=ylim,col='black',pch=16,ylab='',xlab='',cex.lab=cex.lab,cex.axis=cex.axis,xlim=xlim)
+arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==1]),z$y[1,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12-dicPoolSD[(spinUpLength+1):nStep&assim_obs==1]/data2$epiVol[assim_obs==1]*12,
+       as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==1]),z$y[1,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12+dicPoolSD[(spinUpLength+1):nStep&assim_obs==1]/data2$epiVol[assim_obs==1]*12,
        code=3,length=0.1,angle=90,col='black',lwd=3)
 legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
        col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),cex = cex.axis,
@@ -802,12 +807,12 @@ par(mar=c(5,6,4,2))
 rOut<-apply(Y[3,1,,],MARGIN = 1,FUN=mean)
 ylim=range(Y[3,1,,])
 plot(rOut~as.POSIXct(data2$datetime),
-     type='l',ylim=ylim,ylab=expression(fracLabile),lwd=lwd,xlab='',cex.lab=cex,cex.axis=cex.axis)
+     type='l',ylim=ylim,ylab=expression(fracFast),lwd=lwd,xlab='',cex.lab=cex,cex.axis=cex.axis)
 for(i in 1:nEn){
   lines(Y[3,1,,i]~as.POSIXct(data2$datetime),col='gray',ylab='',lwd=lwd,xlab='')
 }
 lines(rOut~as.POSIXct(data2$datetime),ylab='',lwd=lwd,col='gray30',xlab='')
-legend("topright", legend=c("fracLabile Estimate","Ensemble Mean"),
+legend("topright", legend=c("fracFast Estimate","Ensemble Mean"),
        col=c('gray','gray30'),pt.bg=c('gray','gray30'),cex = cex.axis,
        ncol=1,lwd=c(4,4),bty='n',lty=c(1,1),pt.cex = c(0,0),pch = c(0,0))
 text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'E', cex = cex.lab)

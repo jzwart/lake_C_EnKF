@@ -1,6 +1,7 @@
 # JAZ 2016-12-11 
 
 dir<-'/Users/jzwart/LakeCarbonEnKF/Data/CRC/'
+dir<-'/Users/jzwart/Documents/Jake/MyPapers/Model Data Fusion/Results/Results_20170319/'
 files<-list.files(dir)
 
 models<-data.frame()
@@ -275,20 +276,82 @@ library(ggplot2) # ggplot is kickass!! first time using it on 2017-01-19
 #assigning models a number in MS table so it's easier to organize 
 unique(models$model)
 models$modelNumber<-NA
-models$modelNumber<-ifelse(models$model=='oneDOCpool_MM_noTemp',5,models$modelNumber)
-models$modelNumber<-ifelse(models$model=='oneDOCpool_MM_Temp',6,models$modelNumber)
-models$modelNumber<-ifelse(models$model=='oneDOCpool_noMM_noTemp',3,models$modelNumber)
-models$modelNumber<-ifelse(models$model=='oneDOCpool_noMM_Temp',4,models$modelNumber)
-models$modelNumber<-ifelse(models$model=='twoDOCpools_MM_Temp',10,models$modelNumber)
-models$modelNumber<-ifelse(models$model=='twoDOCpools_MM_noTemp',9,models$modelNumber)
-models$modelNumber<-ifelse(models$model=='twoDOCpools_noMM_noTemp',7,models$modelNumber)
-models$modelNumber<-ifelse(models$model=='twoDOCpools_noMM_Temp',8,models$modelNumber)
+models$modelNumber<-ifelse(models$model=='oneDOCpool_MM_noTemp',4,models$modelNumber)
+models$modelNumber<-ifelse(models$model=='oneDOCpool_MM_Temp',5,models$modelNumber)
+models$modelNumber<-ifelse(models$model=='oneDOCpool_noMM_noTemp',2,models$modelNumber)
+models$modelNumber<-ifelse(models$model=='oneDOCpool_noMM_Temp',3,models$modelNumber)
+models$modelNumber<-ifelse(models$model=='twoDOCpools_MM_Temp',9,models$modelNumber)
+models$modelNumber<-ifelse(models$model=='twoDOCpools_MM_noTemp',8,models$modelNumber)
+models$modelNumber<-ifelse(models$model=='twoDOCpools_noMM_noTemp',6,models$modelNumber)
+models$modelNumber<-ifelse(models$model=='twoDOCpools_noMM_Temp',7,models$modelNumber)
 
 models<-models[sort.list(models$modelNumber),]
 
 models<-models[models$reps<10&models$freq<60,]
 
-png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DOC_RMSE.png', 
+png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig2_RMSE_synthetic_all.png', 
+    res=300, width=14, height=21, units = 'in')
+ylim_doc = c(-.2,1.3)
+ylim_dic = c(-.045,.07)
+
+par(mfrow=c(3,2))
+
+p <- ggplot(models[models$obs==1,], aes(x=as.character(modelNumber), y=obsMinusMdfDOC)) + ylim(low=ylim_doc[1],high=ylim_doc[2]) + 
+  geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Model), y = expression(Obs~DOC~RMSE~-~DA~DOC~RMSE))
+p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
+  scale_x_discrete(limits=as.character(unique(models$modelNumber)))+
+  scale_fill_brewer(palette="Greys")+theme(legend.position="none",axis.text=element_text(size=16),
+                                           axis.title=element_text(size=16,face="bold"),
+                                           axis.line = element_line(colour = "black",size = 1, linetype = "solid"))
+
+p <- ggplot(models[models$obs==1,], aes(x=as.character(modelNumber), y=obsMinusMdfDIC)) + ylim(low=ylim_dic[1],high=ylim_dic[2]) + 
+  geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Model), y = expression(Obs~CO[2]~RMSE~-~DA~CO[2]~RMSE))
+p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
+  scale_x_discrete(limits=as.character(unique(models$modelNumber)))+
+  scale_fill_brewer(palette="Greys")+theme(legend.position="none",axis.text=element_text(size=16),
+                                           axis.title=element_text(size=16,face="bold"),
+                                           axis.line = element_line(colour = "black",size = 1, linetype = "solid"))
+
+p <- ggplot(models[models$obs==1,], aes(x=as.character(reps), y=obsMinusMdfDIC)) + ylim(low=ylim_dic[1],high=ylim_dic[2]) +
+  geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Replicate~Samples~(n)), y = expression(Obs~CO[2]~RMSE~-~DA~CO[2]~RMSE))
+p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
+  scale_x_discrete(limits=as.character(c(1,2,3,4,5,6)))+
+  theme(legend.position="none",axis.text=element_text(size=16),
+        axis.title=element_text(size=16,face="bold"),
+        axis.line = element_line(colour = "black",size = 1, linetype = "solid"))
+
+p <- ggplot(models[models$obs==1,], aes(x=as.character(reps), y=obsMinusMdfDOC)) + ylim(low=ylim_doc[1],high=ylim_doc[2]) +
+  geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Replicate~Samples~(n)), 
+                                                            y = expression(Obs~DOC~RMSE~-~DA~DOC~RMSE))
+p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
+  scale_x_discrete(limits=as.character(c(1,2,3,4,5,6)))+
+  theme(legend.position="none",axis.text=element_text(size=16),
+        axis.title=element_text(size=16,face="bold"),
+        axis.line = element_line(colour = "black",size = 1, linetype = "solid"))
+
+p <- ggplot(models[models$obs==1,], aes(x=as.character(freq), y=obsMinusMdfDIC)) + ylim(low=ylim_dic[1],high=ylim_dic[2]) +
+  geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Sampling~Interval~(days)), 
+                                                            y = expression(Obs~CO[2]~RMSE~-~DA~CO[2]~RMSE))
+p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
+  scale_x_discrete(limits=as.character(c(1,7,14,21,28,35)))+
+  theme(legend.position="none",axis.text=element_text(size=16),
+        axis.title=element_text(size=16,face="bold"),
+        axis.line = element_line(colour = "black",size = 1, linetype = "solid"))
+
+p <- ggplot(models[models$obs==1,], aes(x=as.character(freq), y=obsMinusMdfDOC)) + ylim(low=ylim_doc[1],high=ylim_doc[2]) +
+  geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Sampling~Interval~(days)),
+                                                            y = expression(Obs~DOC~RMSE~-~DA~DOC~RMSE))
+p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
+  scale_x_discrete(limits=as.character(c(1,7,14,21,28,35)))+
+  theme(legend.position="none",axis.text=element_text(size=16),
+        axis.title=element_text(size=16,face="bold"),
+        axis.line = element_line(colour = "black",size = 1, linetype = "solid"))
+dev.off()
+
+
+
+
+png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig4_DOC_RMSE.png', 
     res=300, width=7, height=7, units = 'in')
 # cex=2
 # bp.at<-c(2,4,6,8,10,12,14,16)
@@ -301,7 +364,7 @@ png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DOC_RMSE
 # abline(0,0,lty=2,lwd=4,col='black')
 # box('plot',lwd=2)
 # axis(1, at=bp.at, labels=c(3,4,5,6,7,8,9,10),cex.axis=cex)
-p <- ggplot(models[models$obs==1,], aes(x=as.character(modelNumber), y=obsMinusMdfDOC)) + ylim(low=-3,high=2) + 
+p <- ggplot(models[models$obs==1,], aes(x=as.character(modelNumber), y=obsMinusMdfDOC)) + ylim(low=ylim_doc[1],high=ylim_doc[2]) + 
   geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Model), y = expression(Obs~DOC~RMSE~-~DA~DOC~RMSE))
 p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
   scale_x_discrete(limits=as.character(unique(models$modelNumber)))+
@@ -320,7 +383,7 @@ dev.off()
 # p+ geom_dotplot(binaxis='y', stackdir='center', dotsize=.5)
 
 
-png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DIC_RMSE.png', 
+png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig4_DIC_RMSE.png', 
     res=300, width=7, height=7, units = 'in')
 # cex=2
 # bp.at<-c(2,4,6,8,10,12,14,16)
@@ -332,7 +395,7 @@ png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DIC_RMSE
 # abline(0,0,lty=2,lwd=4,col='black')
 # box('plot',lwd=2)
 # axis(1, at=bp.at, labels=c(3,4,5,6,7,8,9,10),cex.axis=cex)
-p <- ggplot(models[models$obs==1,], aes(x=as.character(modelNumber), y=obsMinusMdfDIC)) + ylim(low=-.3,high=.2) + 
+p <- ggplot(models[models$obs==1,], aes(x=as.character(modelNumber), y=obsMinusMdfDIC)) + ylim(low=ylim_dic[1],high=ylim_dic[2]) + 
   geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Model), y = expression(Obs~CO[2]~RMSE~-~DA~CO[2]~RMSE))
 p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
   scale_x_discrete(limits=as.character(unique(models$modelNumber)))+
@@ -348,7 +411,7 @@ dev.off()
 # plot(models$obsMinusMdfDOC[models$obs==1]~models$reps[models$obs==1])
 # plot(models$obsMinusMdfDIC[models$obs==1]~models$reps[models$obs==1])
 
-png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DIC_repsInfluence.png', 
+png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig4_DIC_repsInfluence.png', 
     res=300, width=7, height=7, units = 'in')
 # cex=2
 # par(mar=c(5,6,4,2))
@@ -356,7 +419,7 @@ png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DIC_reps
 #         lwd=6,cex.axis=cex,ylab=expression(CO[2]~RMSE~(Modeled~-~Observed)),cex.lab=cex)
 # abline(0,0,lty=2,lwd=4,col='black')
 # box('plot',lwd=2)
-p <- ggplot(models[models$obs==1,], aes(x=as.character(reps), y=obsMinusMdfDIC)) + 
+p <- ggplot(models[models$obs==1,], aes(x=as.character(reps), y=obsMinusMdfDIC)) + ylim(low=ylim_dic[1],high=ylim_dic[2]) +
   geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Replicate~Samples~(n)), y = expression(Obs~CO[2]~RMSE~-~DA~CO[2]~RMSE))
 p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
   scale_x_discrete(limits=as.character(c(1,2,3,4,5,6)))+
@@ -365,7 +428,7 @@ p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(
                                            axis.line = element_line(colour = "black",size = 1, linetype = "solid"))
 dev.off()
 
-png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DOC_repsInfluence.png', 
+png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig4_DOC_repsInfluence.png', 
     res=300, width=7, height=7, units = 'in')
 # cex=2
 # par(mar=c(5,6,4,2))
@@ -374,7 +437,7 @@ png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DOC_reps
 #      lwd=6,cex.axis=cex,ylab=expression(DOC~RMSE~(Modeled~-~Observed)),cex.lab=cex,ylim=ylim)
 # abline(0,0,lty=2,lwd=4,col='black')
 # box('plot',lwd=2)
-p <- ggplot(models[models$obs==1,], aes(x=as.character(reps), y=obsMinusMdfDOC)) + 
+p <- ggplot(models[models$obs==1,], aes(x=as.character(reps), y=obsMinusMdfDOC)) + ylim(low=ylim_doc[1],high=ylim_doc[2]) +
   geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Replicate~Samples~(n)), 
                                                             y = expression(Obs~DOC~RMSE~-~DA~DOC~RMSE))
 p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
@@ -384,7 +447,7 @@ p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(
         axis.line = element_line(colour = "black",size = 1, linetype = "solid"))
 dev.off()
 
-png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DIC_freqInfluence.png', 
+png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig4_DIC_freqInfluence.png', 
     res=300, width=7, height=7, units = 'in')
 # cex=2
 # par(mar=c(5,6,4,2))
@@ -392,7 +455,7 @@ png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DIC_freq
 #      lwd=6,cex.axis=cex,ylab=expression(CO[2]~RMSE~(Modeled~-~Observed)),cex.lab=cex)
 # abline(0,0,lty=2,lwd=4,col='black')
 # box('plot',lwd=2)
-p <- ggplot(models[models$obs==1,], aes(x=as.character(freq), y=obsMinusMdfDIC)) + 
+p <- ggplot(models[models$obs==1,], aes(x=as.character(freq), y=obsMinusMdfDIC)) + ylim(low=ylim_dic[1],high=ylim_dic[2]) +
   geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Sampling~Interval~(days)), 
                                                             y = expression(Obs~CO[2]~RMSE~-~DA~CO[2]~RMSE))
 p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
@@ -402,7 +465,7 @@ p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(
         axis.line = element_line(colour = "black",size = 1, linetype = "solid"))
 dev.off()
 
-png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DOC_freqInfluence.png', 
+png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig4_DOC_freqInfluence.png', 
     res=300, width=7, height=7, units = 'in')
 # cex=2
 # par(mar=c(5,6,4,2))
@@ -411,7 +474,7 @@ png('/Users/Jake/Documents/Jake/MyPapers/Model Data Fusion/Figures/Fig4_DOC_freq
 #      lwd=6,cex.axis=cex,ylab=expression(DOC~RMSE~(Modeled~-~Observed)),cex.lab=cex,ylim=ylim)
 # abline(0,0,lty=2,lwd=4,col='black')
 # box('plot',lwd=2)
-p <- ggplot(models[models$obs==1,], aes(x=as.character(freq), y=obsMinusMdfDOC)) + 
+p <- ggplot(models[models$obs==1,], aes(x=as.character(freq), y=obsMinusMdfDOC)) + ylim(low=ylim_doc[1],high=ylim_doc[2]) +
   geom_violin(trim = F,fill='grey')+ theme_classic() + labs(x=expression(Sampling~Interval~(days)),
                                                             y = expression(Obs~DOC~RMSE~-~DA~DOC~RMSE))
 p + geom_jitter(shape=16, position=position_jitter(0.2),col='black')+geom_hline(yintercept=0,lty=2,lwd=1.5)+
