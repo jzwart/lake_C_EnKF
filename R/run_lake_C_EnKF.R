@@ -42,19 +42,17 @@ parGuess <- c(0.004,0.3,0.30,0.1,1) #r20; units: day-1; fraction labile of loade
 min<-c(0.004,0.31,0.005,0.3,-3)
 max<-c(0.004,0.31,0.5,0.5,3)
 
-rPDF<-abs(rnorm(n=nEn,mean = parGuess[1],sd = (max[1]-min[1])/5)) # max-min / 5 is rule of thumb sd; forcing positive for negative draws 
+rPDF<-abs(rnorm(n=nEn,mean = parGuess[1],sd = (max[1]-min[1])/5)) # max-min / 5 is rule of thumb sd; 
 rPDF_fast<-abs(rnorm(n=nEn,mean = parGuess[2],sd = (max[2]-min[2])/5))
 fracPDF<-abs(rnorm(n=nEn,mean=parGuess[3],sd=(max[3]-min[3])/5))
 fracInPDF<-abs(rnorm(n=nEn,mean=parGuess[4],sd=(max[4]-min[4])/5))
 covar_inflat_PDF <- rnorm(n=nEn, mean=parGuess[5], sd=(max[5]-min[5])/5)
-# fracInPDF<-rbeta(n = nEn,shape1 = 4,shape2 = 1)
 
 # setting up initial parameter values for all ensemble members 
 rVec<-matrix(rPDF) # each row is an ensemble member 
 rVec_fast<-matrix(rPDF_fast)
 fracVec<-matrix(fracPDF)
 fracInVec<-matrix(fracInPDF)
-# hist(fracInVec)
 covar_inflat_vec <- matrix(covar_inflat_PDF)
 
 data2$entrainHypo<-as.numeric(data2$entrainVol<0)
@@ -87,17 +85,15 @@ if(is.na(dicVec[1])){
 # estimate of observation error covariance matrix
 # error in DOC / DIC pool esitmate comes from concentration estimates and volume of epilimnion
 # DOC / DIC concentration error from replication day in WL on 2014-07-30. CV for DOC is 0.1325858, DIC is 0.1367684
-# Epi: area sd = 1000m2; depth sd = 0.5 m;
+# Epi: area sd = 4000m2; depth sd = 0.25 m;
 # iota sd from metab estimates 
 docSDadjust<-1
 dicSDadjust<-1
 docSD<-(data2$doc/data2$epiVol)*0.1325858 # DOC concentration sd in mol C
 docSD<-ifelse(is.na(docSD),docSD,docSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22
-# docSD<-ifelse(is.na(docSD),docSD,0.11)
 docSD<-docSD*docSDadjust # DOC concentration sd in mol C; modifying for sensativity analysis
 dicSD<-(data2$dic/data2$epiVol)*0.1367684 # DIC concentration sd in mol C 
 dicSD<-ifelse(is.na(dicSD),dicSD,dicSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22
-# dicSD<-ifelse(is.na(dicSD),dicSD,0.005)
 dicSD<-dicSD*dicSDadjust
 areaSD<-4000 # constant SD in m 
 depthSD<-0.25 # constant SD in m 
@@ -108,8 +104,6 @@ docPoolSD<-data2$doc*sqrt((docSD/(data2$doc/data2$epiVol))^2+(areaSD/data2$A0)^2
 dicPoolSD<-data2$dic*sqrt((dicSD/(data2$dic/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
 H[1,1,]<-dicPoolSD^2 #variance of DIC
 H[2,2,]<-docPoolSD^2 #variance of DOC 
-# H[1,1,]<-H[1,1,]/2
-# H[2,2,]<-H[2,2,]/2# docPoolSD^2 #variance of DOC
 
 H[1,1,]<-ifelse(is.na(H[1,1,]),mean(H[1,1,],na.rm=T),H[1,1,]) # taking care of na's in DIC; setting to mean of variance if NA 
 H[2,2,]<-ifelse(is.na(H[2,2,]),mean(H[2,2,],na.rm=T),H[2,2,]) # taking care of na's in DOC; setting to mean of variance if NA 
@@ -126,14 +120,12 @@ X[2,1,1,]<-rnorm(n=nEn,y[2,1,1,]*(1-fracLabile0),sd=docPoolSD[1]*(1-fracLabile0)
 X[3,1,1,]<-rnorm(n=nEn,y[2,1,1,]*fracLabile0,sd=docPoolSD[1]*fracLabile0) # recalcitrant pool is 10% of initial DOC pool
 X[4,1,1,]<-X[2,1,1,]+X[3,1,1,] # recalcitrant pool + labile pool 
 
-
 # operator matrix saying 1 if there is observation data available, 0 otherwise 
 h<-array(0,dim=c(2,9,nStep))
 for(i in 1:nStep){
   h[1,6,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic 
   h[2,9,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) #doc total (we only have data on total DOC pool)
 }
-
 
 P <- array(0,dim=c(5,5,nStep))
 S <- array(0,dim=c(4,4,nStep))
@@ -186,7 +178,7 @@ Y[9,1,1,]<-z$X[4,1,1,] # DOC total state
 assim_number <- 0 # counter for checking if observation should be assimilated or not (assimilating everyother obs, validating on left out obs); assimilate odd numbers 
 assim_obs <- rep(0,nStep)
 
-out = EnKF_2pools(Y, z, i, t) 
+out = EnKF_2pools(Y, z, i, t) # run EnKF 
 Y = out$Y
 assim_obs = out$assim_obs
 
@@ -245,28 +237,28 @@ cex.lab=3
 cex.axis=2
 lwd=3
 ylim=c(0.5,3)
-xlim=range(as.POSIXct(data2$datetime[spinUpLength+1:nStep]))
+xlim=range(as.POSIXct(data2$datetime))
 par(mar=c(5,7,4,2),mfrow=c(3,2))
 DOCout<-apply(Y[9,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
 ylim=range(c(Y[9,1,,]/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12+docPoolSD/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12-docPoolSD/data2$epiVol*12),na.rm=T)
-plot(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=cex.axis,
+plot(DOCout~as.POSIXct(data2$datetime),type='l',ylim=ylim,lwd=lwd,cex.axis=cex.axis,
      ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab)
 for(i in 1:nEn){
-  lines(Y[9,1,(spinUpLength+1):nStep,i]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+  lines(Y[9,1,,i]/data2$epiVol*12~as.POSIXct(data2$datetime),
         col='gray',ylab='',lwd=lwd)
 }
-lines(DOCout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=3,col='gray30')
+lines(DOCout~as.POSIXct(data2$datetime),ylab='',lwd=3,col='gray30')
 par(new=T)
-plot(z$y[2,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep&assim_obs==0]),cex=cex,
+plot(z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12~as.POSIXct(data2$datetime[assim_obs==0]),cex=cex,
      ylim=ylim,col='black',pch=21,ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab,cex.axis=cex.axis,xlim=xlim)
-arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==0]),z$y[2,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12-docPoolSD[(spinUpLength+1):nStep&assim_obs==0]/data2$epiVol[assim_obs==0]*12,
-       as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==0]),z$y[2,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+docPoolSD[(spinUpLength+1):nStep&assim_obs==0]/data2$epiVol[assim_obs==0]*12,
+arrows(as.POSIXct(data2$datetime[assim_obs==0]),z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12-docPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12,
+       as.POSIXct(data2$datetime[assim_obs==0]),z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+docPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12,
        code=3,length=0.1,angle=90,col='black',lwd=3)
 par(new=T)
-plot(z$y[2,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep&assim_obs==1]),cex=cex,
+plot(z$y[2,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12~as.POSIXct(data2$datetime[assim_obs==1]),cex=cex,
      ylim=ylim,col='black',pch=16,ylab=expression(DOC~(mg~C~L^-1)),xlab='',cex.lab=cex.lab,cex.axis=cex.axis,xlim=xlim)
-arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==1]),z$y[2,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12-docPoolSD[(spinUpLength+1):nStep&assim_obs==1]/data2$epiVol[assim_obs==1]*12,
-       as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==1]),z$y[2,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12+docPoolSD[(spinUpLength+1):nStep&assim_obs==1]/data2$epiVol[assim_obs==1]*12,
+arrows(as.POSIXct(data2$datetime[assim_obs==1]),z$y[2,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12-docPoolSD[assim_obs==1]/data2$epiVol[assim_obs==1]*12,
+       as.POSIXct(data2$datetime[assim_obs==1]),z$y[2,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12+docPoolSD[assim_obs==1]/data2$epiVol[assim_obs==1]*12,
        code=3,length=0.1,angle=90,col='black',lwd=3)
 legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
        col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),cex = cex.axis,
@@ -275,24 +267,24 @@ text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 
 
 DICout<-apply(Y[6,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
 ylim=range(c(Y[6,1,,]/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12+dicPoolSD/data2$epiVol*12,z$y[1,1,,1]/data2$epiVol*12-dicPoolSD/data2$epiVol*12),na.rm=T)
-plot(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),type='l',ylim=ylim,lwd=lwd,cex.axis=cex.axis,
+plot(DICout~as.POSIXct(data2$datetime),type='l',ylim=ylim,lwd=lwd,cex.axis=cex.axis,
      ylab=expression(CO[2]~(mg~C~L^-1)),xlab='',cex.lab=cex.lab)
 for(i in 1:nEn){
-  lines(Y[6,1,(spinUpLength+1):nStep,i]/data2$epiVol*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+  lines(Y[6,1,,i]/data2$epiVol*12~as.POSIXct(data2$datetime),
         col='gray',ylab='',lwd=lwd)
 }
-lines(DICout[spinUpLength+1:nStep]~as.POSIXct(data2$datetime[spinUpLength+1:nStep]),ylab='',lwd=3,col='gray30')
+lines(DICout~as.POSIXct(data2$datetime),ylab='',lwd=3,col='gray30')
 par(new=T)
-plot(z$y[1,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep&assim_obs==0]),cex=cex,
+plot(z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12~as.POSIXct(data2$datetime[assim_obs==0]),cex=cex,
      ylim=ylim,col='black',pch=21,ylab = '',xlab='',cex.lab=cex.lab,cex.axis=cex.axis,xlim=xlim)
-arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==0]),z$y[1,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12-dicPoolSD[(spinUpLength+1):nStep&assim_obs==0]/data2$epiVol[assim_obs==0]*12,
-       as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==0]),z$y[1,1,(spinUpLength+1):nStep&assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+dicPoolSD[(spinUpLength+1):nStep&assim_obs==0]/data2$epiVol[assim_obs==0]*12,
+arrows(as.POSIXct(data2$datetime[assim_obs==0]),z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12-dicPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12,
+       as.POSIXct(data2$datetime[assim_obs==0]),z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+dicPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12,
        code=3,length=0.1,angle=90,col='black',lwd=3)
 par(new=T)
-plot(z$y[1,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12~as.POSIXct(data2$datetime[(spinUpLength+1):nStep&assim_obs==1]),cex=cex,
+plot(z$y[1,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12~as.POSIXct(data2$datetime[assim_obs==1]),cex=cex,
      ylim=ylim,col='black',pch=16,ylab='',xlab='',cex.lab=cex.lab,cex.axis=cex.axis,xlim=xlim)
-arrows(as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==1]),z$y[1,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12-dicPoolSD[(spinUpLength+1):nStep&assim_obs==1]/data2$epiVol[assim_obs==1]*12,
-       as.POSIXct(data2$datetime[spinUpLength+1:nStep&assim_obs==1]),z$y[1,1,(spinUpLength+1):nStep&assim_obs==1,1]/data2$epiVol[assim_obs==1]*12+dicPoolSD[(spinUpLength+1):nStep&assim_obs==1]/data2$epiVol[assim_obs==1]*12,
+arrows(as.POSIXct(data2$datetime[assim_obs==1]),z$y[1,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12-dicPoolSD[assim_obs==1]/data2$epiVol[assim_obs==1]*12,
+       as.POSIXct(data2$datetime[assim_obs==1]),z$y[1,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12+dicPoolSD[assim_obs==1]/data2$epiVol[assim_obs==1]*12,
        code=3,length=0.1,angle=90,col='black',lwd=3)
 legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
        col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),cex = cex.axis,
@@ -317,7 +309,7 @@ r20All<-r20L*fracLout+r20R*fracRout
 ylim=range(rFunc(Y[2,1,,],data2$epiTemp)*(Y[8,1,,]/Y[9,1,,])+rFunc(Y[1,1,,],data2$epiTemp)*(Y[7,1,,]/Y[9,1,,]))
 ylim[1]=0.001
 par(mar=c(5,7,4,2))
-plot(r20All~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+plot(r20All~as.POSIXct(data2$datetime),
      type='l',ylim=ylim,ylab=expression(d~(day^-1)),lwd=lwd,xlab='',cex.lab=cex,cex.axis=cex.axis)
 for(i in 1:nEn){
   curFracLout<-Y[8,1,,i]/Y[9,1,,i]
@@ -325,9 +317,9 @@ for(i in 1:nEn){
   curr20All<-rFunc(Y[2,1,,i],data2$epiTemp)*curFracLout+rFunc(Y[1,1,,i],data2$epiTemp)*curFracRout
   lines(curr20All,col='gray',ylab='')
   lines(curr20All~
-          as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),col='gray',ylab='',lwd=lwd,xlab='')
+          as.POSIXct(data2$datetime),col='gray',ylab='',lwd=lwd,xlab='')
 }
-lines(r20All~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),ylab='',lwd=lwd,col='gray30',
+lines(r20All~as.POSIXct(data2$datetime),ylab='',lwd=lwd,col='gray30',
       xlab='')
 legend("topright", legend=c("d Estimate","Ensemble Mean"),
        col=c('gray','gray30'),pt.bg=c('gray','gray30'),cex = cex.axis,
@@ -353,7 +345,7 @@ ylim=range(rFunc(Y[2,1,,],data2$epiTemp)*(Y[8,1,,]/Y[9,1,,])+rFunc(Y[1,1,,],data
 ylim[1]=0.001
 par(mar=c(5,7,4,7))
 rOut<-apply(Y[1,1,,],MARGIN = 1,FUN=mean)
-plot(r20All~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),
+plot(r20All~as.POSIXct(data2$datetime),
      type='l',ylim=ylim,ylab=expression(d[20]~(day^-1)),lwd=lwd,xlab='',cex.lab=cex,cex.axis=cex.axis)
 for(i in 1:nEn){
   curFracLout<-Y[8,1,,i]/Y[9,1,,i]
@@ -361,12 +353,12 @@ for(i in 1:nEn){
   curr20All<-Y[2,1,,i]*curFracLout+Y[1,1,,i]*curFracRout
   lines(curr20All,col='gray',ylab='')
   lines(curr20All~
-          as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),col='gray',ylab='',lwd=lwd,xlab='')
+          as.POSIXct(data2$datetime),col='gray',ylab='',lwd=lwd,xlab='')
 }
-lines(r20All~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),ylab='',lwd=lwd,col='gray30',
+lines(r20All~as.POSIXct(data2$datetime),ylab='',lwd=lwd,col='gray30',
       xlab='')
 par(new=T)
-plot(data2$docIn[(spinUpLength+1):nStep]~as.POSIXct(data2$datetime[(spinUpLength+1):nStep]),type='l',lwd=4,
+plot(data2$docIn~as.POSIXct(data2$datetime),type='l',lwd=4,
      col='black',yaxt='n',xaxt='n',ylab='',xlab='',lty=6)
 axis(4,cex.axis=cex.axis)
 mtext(expression(loadDOC~(mol~C~day^-1)),4,line = 5,cex=2)

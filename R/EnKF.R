@@ -1,5 +1,5 @@
 
-EnKF_2pools <- function(){
+EnKF_2pools <- function(Y, z, i, t){
   #Iterate through time
   for(t in 2:nStep){
     for(i in 1:nEn){
@@ -94,4 +94,5 @@ EnKF_2pools <- function(){
     }
     
   } # End iteration
+  return(list(Y = Y, assim_obs = assim_obs))
 }
