@@ -1,7 +1,7 @@
 # creating fake data for MDF
 # JAZ; 2016-11-22
 
-load('/Users/jzwart/LakeCarbonEnKF/Data/EnKF_LongData_20170223.RData')
+load('Data/EnKF_LongData_20170223.RData')
 
 splitFunc<-function(epiDens,streamDens,fracIn){ # function that tells how much load goes into epi
   fracInEpi=exp(-fracIn*(streamDens-epiDens))
