@@ -1,6 +1,6 @@
 # # # # setting up Long Data for EnKF; EnKF runs at end of code
 # # # # JAZ; 2016-03-28
-# validating with every other observation 
+# validating with every other observation
 
 ###################
 #Run Kalman filter
@@ -12,7 +12,7 @@ splitFunc<-function(epiDens,streamDens,fracIn){ # not based on density differenc
   return(fracIn)
 }
 
-set.seed(42) 
+set.seed(42)
 
 data2 <- data
 data2$hypo_dicInt<-data2$hypo_dicInt*0.25 # entrained CO2 is much less than where we measure CO2
@@ -23,33 +23,33 @@ data2<-data2[!is.na(data2$ma_gpp),]
 data2<-data2[data2$datetime<as.POSIXct('2015-01-01'),] # only keeping 2014
 data2<-data2[min(which(!is.na(data2$doc))):nrow(data2),]
 
-# adding in trash pump discharge out starting on Aug. 22, 2015 until the end of time series in 2015 
+# adding in trash pump discharge out starting on Aug. 22, 2015 until the end of time series in 2015
 # data2$QoutInt[data2$datetime>=as.POSIXct('2015-08-22')]<-data2$QoutInt[data2$datetime>=as.POSIXct('2015-08-22')]+400
 
 fracLabile0<-0.01 # fraction of initial DOC pool that is labile
 fracLabile<-0.08 # fraction loaded t-DOC that is labile; estimate from Berggren et al. 2010 Eco Letts & ISME
 
-# need some initial conditions for observations 
+# need some initial conditions for observations
 data2$dic[1]<-data2$dic[min(which(!is.na(data2$dic)))]
 data2$doc[1]<-data2$doc[min(which(!is.na(data2$doc)))]
 
-## *********************** EnKF ***************************## Gao et al. 2011 is a useful reference 
-nEn<-100 # number of ensembles 
+## *********************** EnKF ***************************## Gao et al. 2011 is a useful reference
+nEn<-100 # number of ensembles
 nStep<-length(data2$datetime)
 
-# draws from priors to create ensemble 
-parGuess <- c(0.004,0.3,0.30,0.1,1) #r20; units: day-1; fraction labile of loaded DOC; fraction inlet that goes into epi; turnover rate parameters set constant frac labile estimated 
+# draws from priors to create ensemble
+parGuess <- c(0.004,0.3,0.30,0.1,1) #r20; units: day-1; fraction labile of loaded DOC; fraction inlet that goes into epi; turnover rate parameters set constant frac labile estimated
 min<-c(0.004,0.31,0.005,0.3,-3)
 max<-c(0.004,0.31,0.5,0.5,3)
 
-rPDF<-abs(rnorm(n=nEn,mean = parGuess[1],sd = (max[1]-min[1])/5)) # max-min / 5 is rule of thumb sd; 
+rPDF<-abs(rnorm(n=nEn,mean = parGuess[1],sd = (max[1]-min[1])/5)) # max-min / 5 is rule of thumb sd;
 rPDF_fast<-abs(rnorm(n=nEn,mean = parGuess[2],sd = (max[2]-min[2])/5))
 fracPDF<-abs(rnorm(n=nEn,mean=parGuess[3],sd=(max[3]-min[3])/5))
 fracInPDF<-abs(rnorm(n=nEn,mean=parGuess[4],sd=(max[4]-min[4])/5))
 covar_inflat_PDF <- rnorm(n=nEn, mean=parGuess[5], sd=(max[5]-min[5])/5)
 
-# setting up initial parameter values for all ensemble members 
-rVec<-matrix(rPDF) # each row is an ensemble member 
+# setting up initial parameter values for all ensemble members
+rVec<-matrix(rPDF) # each row is an ensemble member
 rVec_fast<-matrix(rPDF_fast)
 fracVec<-matrix(fracPDF)
 fracInVec<-matrix(fracInPDF)
@@ -58,10 +58,10 @@ covar_inflat_vec <- matrix(covar_inflat_PDF)
 data2$entrainHypo<-as.numeric(data2$entrainVol<0)
 data2$entrainEpi<-as.numeric(data2$entrainVol>0)
 
-# initial B transition matrix for each ensemble  
-B<-array(NA,dim=c(4,4,nStep,nEn)) # array of transition matrix B[a,b,c,d]; 
-                                      # where [a,b] is transition matrix DIC & DOCr & DOCl, c=timeStep, and d=ensemble member 
-# initial parameters of B at timestep 1 
+# initial B transition matrix for each ensemble
+B<-array(NA,dim=c(4,4,nStep,nEn)) # array of transition matrix B[a,b,c,d];
+                                      # where [a,b] is transition matrix DIC & DOCr & DOCl, c=timeStep, and d=ensemble member
+# initial parameters of B at timestep 1
 for(i in 1:nEn){
   B[,,1,i]<-matrix(c(1-data2$QoutInt[1]/data2$epiVol[1]-data2$kCO2[1]/data2$thermo.depth[1]+
                        (data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*data2$entrainHypo[1]/data2$epiVol[1],
@@ -86,44 +86,44 @@ if(is.na(dicVec[1])){
 # error in DOC / DIC pool esitmate comes from concentration estimates and volume of epilimnion
 # DOC / DIC concentration error from replication day in WL on 2014-07-30. CV for DOC is 0.1325858, DIC is 0.1367684
 # Epi: area sd = 4000m2; depth sd = 0.25 m;
-# iota sd from metab estimates 
+# iota sd from metab estimates
 docSDadjust<-1
 dicSDadjust<-1
 docSD<-(data2$doc/data2$epiVol)*0.1325858 # DOC concentration sd in mol C
 docSD<-ifelse(is.na(docSD),docSD,docSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22
 docSD<-docSD*docSDadjust # DOC concentration sd in mol C; modifying for sensativity analysis
-dicSD<-(data2$dic/data2$epiVol)*0.1367684 # DIC concentration sd in mol C 
+dicSD<-(data2$dic/data2$epiVol)*0.1367684 # DIC concentration sd in mol C
 dicSD<-ifelse(is.na(dicSD),dicSD,dicSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22
 dicSD<-dicSD*dicSDadjust
-areaSD<-4000 # constant SD in m 
-depthSD<-0.25 # constant SD in m 
+areaSD<-4000 # constant SD in m
+depthSD<-0.25 # constant SD in m
 
 H<-array(0,dim=c(2,2,nStep))
-# propogation of error for multiplication 
+# propogation of error for multiplication
 docPoolSD<-data2$doc*sqrt((docSD/(data2$doc/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
 dicPoolSD<-data2$dic*sqrt((dicSD/(data2$dic/data2$epiVol))^2+(areaSD/data2$A0)^2+(depthSD/data2$thermo.depth)^2)
 H[1,1,]<-dicPoolSD^2 #variance of DIC
-H[2,2,]<-docPoolSD^2 #variance of DOC 
+H[2,2,]<-docPoolSD^2 #variance of DOC
 
-H[1,1,]<-ifelse(is.na(H[1,1,]),mean(H[1,1,],na.rm=T),H[1,1,]) # taking care of na's in DIC; setting to mean of variance if NA 
-H[2,2,]<-ifelse(is.na(H[2,2,]),mean(H[2,2,],na.rm=T),H[2,2,]) # taking care of na's in DOC; setting to mean of variance if NA 
+H[1,1,]<-ifelse(is.na(H[1,1,]),mean(H[1,1,],na.rm=T),H[1,1,]) # taking care of na's in DIC; setting to mean of variance if NA
+H[2,2,]<-ifelse(is.na(H[2,2,]),mean(H[2,2,],na.rm=T),H[2,2,]) # taking care of na's in DOC; setting to mean of variance if NA
 
 y=array(rbind(dicVec,docVec),dim=c(2,1,nStep))
-y=array(rep(y,nEn),dim=c(2,1,nStep,nEn)) # array of observations y[a,b,c,d]; where a=dic/doc, b=column, c=timeStep, and d=ensemble member 
+y=array(rep(y,nEn),dim=c(2,1,nStep,nEn)) # array of observations y[a,b,c,d]; where a=dic/doc, b=column, c=timeStep, and d=ensemble member
 
-X<-array(NA,dim =c(4,1,nStep,nEn)) # model estimate matrices X[a,b,c,d]; where a=dic/doc_r/doc_l, b=column, c=timestep, and d=ensemble member 
+X<-array(NA,dim =c(4,1,nStep,nEn)) # model estimate matrices X[a,b,c,d]; where a=dic/doc_r/doc_l, b=column, c=timestep, and d=ensemble member
 
-#initializing estimate of state, X, with first observation 
-# drawing from normal distribution for inital pool sizes 
+#initializing estimate of state, X, with first observation
+# drawing from normal distribution for inital pool sizes
 X[1,1,1,]<-rnorm(n=nEn,y[1,1,1,],sd=dicPoolSD[1])
 X[2,1,1,]<-rnorm(n=nEn,y[2,1,1,]*(1-fracLabile0),sd=docPoolSD[1]*(1-fracLabile0)) # labile pool is 90% of initial DOC pool
 X[3,1,1,]<-rnorm(n=nEn,y[2,1,1,]*fracLabile0,sd=docPoolSD[1]*fracLabile0) # recalcitrant pool is 10% of initial DOC pool
-X[4,1,1,]<-X[2,1,1,]+X[3,1,1,] # recalcitrant pool + labile pool 
+X[4,1,1,]<-X[2,1,1,]+X[3,1,1,] # recalcitrant pool + labile pool
 
-# operator matrix saying 1 if there is observation data available, 0 otherwise 
+# operator matrix saying 1 if there is observation data available, 0 otherwise
 h<-array(0,dim=c(2,9,nStep))
 for(i in 1:nStep){
-  h[1,6,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic 
+  h[1,6,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic
   h[2,9,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) #doc total (we only have data on total DOC pool)
 }
 
@@ -132,16 +132,16 @@ S <- array(0,dim=c(4,4,nStep))
 PS <- array(0, dim=c(9,9,nStep))
 
 #Define matrix C, parameters of covariates [2x6]
-C<-array(NA,dim=c(4,7,nStep,nEn)) # array of transition matrix C[a,b,c,d]; 
-#intializing first time step 
+C<-array(NA,dim=c(4,7,nStep,nEn)) # array of transition matrix C[a,b,c,d];
+#intializing first time step
 for(i in 1:nEn){
   C[,,1,i]<-matrix(c(data2$kCO2[1],1,-data2$ma_gpp[1],0,0,0,data2$hypo_dicInt[1],0,0,0,data2$ma_gpp[1],0,(1-fracVec[i]),data2$hypo_docInt[1]*(1-fracLabile0),
                      0,0,0,0,data2$ma_gpp[1],fracVec[i],data2$hypo_docInt[1]*fracLabile0,
                      0,0,0,data2$ma_gpp[1],data2$ma_gpp[1],1,data2$hypo_docInt[1]),nrow=4,byrow=T)
 }
 
-ut<-array(NA,dim=c(7,1,nStep,nEn)) # array of transition matrix C[a,b,c,d]; 
-#intializing first time step 
+ut<-array(NA,dim=c(7,1,nStep,nEn)) # array of transition matrix C[a,b,c,d];
+#intializing first time step
 for(i in 1:nEn){
   ut[,,1,i]<-matrix(c(data2$DICeq[1]*data2$epiVol[1]/data2$thermo.depth[1],
                       data2$dicIn[1]-data2$streamWaterdisch[1]*data2$Inlet_dic[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])),(1-GPPrespired),
@@ -156,48 +156,48 @@ pars[3,1,1,]<-fracVec
 pars[4,1,1,]<-fracInVec
 pars[5,1,1,]<-covar_inflat_vec
 
-# set up a list for all matrices 
+# set up a list for all matrices
 z=list(B=B,y=y,X=X,C=C,ut=ut,pars=pars)
 
-# i is ensemble member; t is timestep 
+# i is ensemble member; t is timestep
 i=1
 t=2
 
-# set up Y vector for which we concatonate parameters, states, and observed data 
+# set up Y vector for which we concatonate parameters, states, and observed data
 Y<-array(NA,c(9,1,nStep,nEn))
-Y[1,1,1,]<-rVec # r20 parameter 
-Y[2,1,1,]<-rVec_fast # r20 labile parameter 
+Y[1,1,1,]<-rVec # r20 parameter
+Y[2,1,1,]<-rVec_fast # r20 labile parameter
 Y[3,1,1,]<-fracVec # fraction labile of loaded DOC
 Y[4,1,1,]<-fracInVec # fraction of Inlet stream that goes into epi
-Y[5,1,1,]<-pars[5,1,1,]# inflation factor 
-Y[6,1,1,]<-z$X[1,1,1,] # DIC state  
-Y[7,1,1,]<-z$X[2,1,1,] # DOC recalcitrant state  
-Y[8,1,1,]<-z$X[3,1,1,] # DOC labile state  
-Y[9,1,1,]<-z$X[4,1,1,] # DOC total state  
+Y[5,1,1,]<-pars[5,1,1,]# inflation factor
+Y[6,1,1,]<-z$X[1,1,1,] # DIC state
+Y[7,1,1,]<-z$X[2,1,1,] # DOC recalcitrant state
+Y[8,1,1,]<-z$X[3,1,1,] # DOC labile state
+Y[9,1,1,]<-z$X[4,1,1,] # DOC total state
 
-assim_number <- 0 # counter for checking if observation should be assimilated or not (assimilating everyother obs, validating on left out obs); assimilate odd numbers 
+assim_number <- 1 # counter for checking if observation should be assimilated or not (assimilating everyother obs, validating on left out obs); assimilate odd numbers
 assim_obs <- rep(0,nStep)
 
-out = EnKF_2pools(Y, z, i, t) # run EnKF 
+out = EnKF_2pools(Y, z, i, t) # run EnKF
 Y = out$Y
 assim_obs = out$assim_obs
 
-# # mean RMSE for states 
+# # mean RMSE for states
 print(sqrt(mean((apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12-z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12)^2,na.rm=T)))
 print(sqrt(mean((apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12-z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12)^2,na.rm=T)))
 
 cor(apply(Y[6,1,!is.na(z$y[1,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[1,1,,1])&assim_obs==0]*12,z$y[1,1,!is.na(z$y[1,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[1,1,,1])&assim_obs==0]*12)^2
 cor(apply(Y[9,1,!is.na(z$y[2,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12,z$y[2,1,!is.na(z$y[2,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12)^2
 
-#bias 
+#bias
 mean(apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12-z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12,na.rm = T)^2
 mean(apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12-z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12,na.rm=T)^2
 
-# # mean RMSE for states; mol C 
+# # mean RMSE for states; mol C
 print(sqrt(mean((apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=mean)-z$y[1,1,assim_obs==0,1])^2,na.rm=T)))
 print(sqrt(mean((apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean)-z$y[2,1,assim_obs==0,1])^2,na.rm=T)))
 
-# r2; mol C 
+# r2; mol C
 cor(apply(Y[6,1,!is.na(z$y[1,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean),z$y[1,1,!is.na(z$y[1,1,,1])&assim_obs==0,1])^2
 cor(apply(Y[9,1,!is.na(z$y[2,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean),z$y[2,1,!is.na(z$y[2,1,,1])&assim_obs==0,1])^2
 
@@ -206,12 +206,12 @@ fit = apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]
 obs = z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
 AIC(logLik(lm(obs~fit)))
 
-# AIC DOC 
+# AIC DOC
 fit = apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12
 obs = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
 AIC(logLik(lm(obs~fit)))
 
-#this is kinda cool 
+#this is kinda cool
 windows()
 for(t in 1:length(data2$datetime)){
   if(t == 1){
@@ -221,7 +221,16 @@ for(t in 1:length(data2$datetime)){
   }
 }
 
-# # Figure 2 plotting concentration 
+for(t in 1:length(data2$datetime)){
+  if(t == 1){
+    plot(density(Y[5,1,t,]), ylim = c(0,2))
+    abline(v = 1)
+  }else{
+    lines(density(Y[5,1,t,]))
+  }
+}
+
+# # Figure 2 plotting concentration
 ###############
 png('Figures/Fig2_all_rev1.png',
     res=300, width=14, height=21, units = 'in')
@@ -230,7 +239,7 @@ b_mar = 0.1
 t_mar = 0.05
 r_mar= 0.05
 gapper = 0.15 # space between panels
-leg = 0.05 # distance from corner for panel label 
+leg = 0.05 # distance from corner for panel label
 
 cex=4
 cex.lab=3
@@ -291,7 +300,7 @@ legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
        ncol=1,lwd=c(4,4,0),bty='n',lty=c(1,1,0),pt.cex = c(0,0,2),pch = c(0,0,16))
 text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'B', cex = cex.lab)
 
-# turnover rate 
+# turnover rate
 l_mar = 0.35
 b_mar = 0.1
 t_mar = 0.05
@@ -326,7 +335,7 @@ legend("topright", legend=c("d Estimate","Ensemble Mean"),
        ncol=1,lwd=c(4,4),bty='n',lty=c(1,1),pt.cex = c(0,0),pch = c(0,0))
 text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'C', cex = cex.lab)
 
-# d 20 
+# d 20
 l_mar = 0.35
 b_mar = 0.1
 t_mar = 0.05
@@ -424,19 +433,27 @@ dev.off()
 DOCout<-apply(Y[9,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
 DICout<-apply(Y[6,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
 
-# how much CO2 missed due to linear interpolation? between obs time point 6 & 7 
+# how much CO2 missed due to linear interpolation? between obs time point 6 & 7
 linInt=z
 # linInt$y[1,1,36:43,1]<-approx(36:43,z$y[1,1,36:43,1]/data2$epiVol[36:43]*12,xout = 36:43)$y
 linInt$y[1,1,,1]<-approx(1:nStep,z$y[1,1,,1]/data2$epiVol[]*12,xout = 1:nStep)$y
 linInt$y[2,1,,1]<-approx(1:nStep,z$y[2,1,,1]/data2$epiVol[]*12,xout = 1:nStep)$y
 
-range(DICout[]/linInt$y[1,1,,1],na.rm = T)
-range(DICout[!as.numeric(h[1,6,])]/linInt$y[1,1,!as.numeric(h[1,6,]),1],na.rm = T)
-range(DICout[as.logical(h[1,6,])]/linInt$y[1,1,as.logical(h[1,6,]),1],na.rm = T)
+range(DICout[]/linInt$y[1,1,,1],na.rm = T) # all diff
+range(DICout[!as.numeric(h[1,6,])]/linInt$y[1,1,!as.numeric(h[1,6,]),1],na.rm = T) # diff during unmonitored
+# max decrease
+max((DICout[!as.numeric(h[1,6,])]-linInt$y[1,1,!as.numeric(h[1,6,]),1])/DICout[!as.numeric(h[1,6,])]*100,na.rm = T)
+#max increase
+max((linInt$y[1,1,!as.numeric(h[1,6,]),1]-DICout[!as.numeric(h[1,6,])])/DICout[!as.numeric(h[1,6,])]*100,na.rm = T)
+range(DICout[as.logical(h[1,6,])]/linInt$y[1,1,as.logical(h[1,6,]),1],na.rm = T) # diff during monitored
 
-range(DOCout[]/linInt$y[2,1,,1],na.rm = T)
-range(DOCout[!as.numeric(h[2,9,])]/linInt$y[2,1,!as.numeric(h[2,9,]),1],na.rm = T)
-range(DOCout[as.logical(h[2,9,])]/linInt$y[2,1,as.logical(h[2,9,]),1],na.rm = T)
+range(DOCout[]/linInt$y[2,1,,1],na.rm = T) # all diff
+range(DOCout[!as.numeric(h[2,9,])]/linInt$y[2,1,!as.numeric(h[2,9,]),1],na.rm = T) # diff during unmonitored
+# max decrease
+max((DOCout[!as.numeric(h[2,9,])]-linInt$y[2,1,!as.numeric(h[2,9,]),1])/DOCout[!as.numeric(h[2,9,])]*100,na.rm = T)
+#max increase
+max((linInt$y[2,1,!as.numeric(h[2,9,]),1]-DOCout[!as.numeric(h[2,9,])])/DOCout[!as.numeric(h[2,9,])]*100,na.rm = T)
+range(DOCout[as.logical(h[2,9,])]/linInt$y[2,1,as.logical(h[2,9,]),1],na.rm = T) # diff during monitored
 
 #what if we only had bi-weekly obs
 linInt$y[1,1,,1]<-approx(1:nStep,z$y[1,1,,1]/data2$epiVol[]*12,xout = 1:nStep)$y
