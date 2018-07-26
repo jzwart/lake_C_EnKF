@@ -427,6 +427,15 @@ for(t in 2:nStep){
   }
 } # End iteration
 
+DOCout<-apply(Y[5,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+DOCpredictSD<-apply(Y[5,1,,]/data2$epiVol*12,MARGIN = 1,FUN=sd)
+DOCout<-cbind(DOCout,z$y[2,1,(spinUpLength+1):nStep,1]/data2$epiVol*12)
+DOCout<-cbind(DOCout,(true[8,1,,1]/data2$epiVol*12))
+
+DICout<-apply(Y[4,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+DICpredictSD<-apply(Y[4,1,,]/data2$epiVol*12,MARGIN = 1,FUN=sd)
+DICout<-cbind(DICout,z$y[1,1,(spinUpLength+1):nStep,1]/data2$epiVol*12)
+DICout<-cbind(DICout,(true[5,1,,1]/data2$epiVol*12))
 
 sqrt(mean((DOCout[,1]-DOCout[,2])^2,na.rm=T)) #RMSE mod-obs
 sqrt(mean((DOCout[,1]-DOCout[,3])^2,na.rm=T)) # RMSE mod-true
