@@ -211,6 +211,39 @@ fit = apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]
 obs = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
 AIC(logLik(lm(obs~fit)))
 
+# checking if variance in ensembles captures the obs at 95% confidence
+#
+doc_05 = (apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
+doc_95 = (apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
+doc_obs = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
+perc_doc_obs_in_ci = sum(doc_obs < doc_95 & doc_obs > doc_05, na.rm = T) / sum(!is.na(doc_obs)) * 100
+
+co2_05 = (apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
+co2_95 = (apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
+co2_obs = z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
+perc_co2_obs_in_ci = sum(co2_obs < co2_95 & co2_obs > co2_05, na.rm = T) / sum(!is.na(co2_obs)) * 100
+
+# all obs
+doc_05 = (apply(Y[9,1,,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[9,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
+doc_95 = (apply(Y[9,1,,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[9,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
+doc_obs = z$y[2,1,,1]/data2$epiVol[]*12
+perc_doc_obs_in_ci = sum(doc_obs < doc_95 & doc_obs > doc_05, na.rm = T) / sum(!is.na(doc_obs)) * 100
+
+co2_05 = (apply(Y[6,1,,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[6,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
+co2_95 = (apply(Y[6,1,,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[6,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
+co2_obs = z$y[1,1,,1]/data2$epiVol[]*12
+perc_co2_obs_in_ci = sum(co2_obs < co2_95 & co2_obs > co2_05, na.rm = T) / sum(!is.na(co2_obs)) * 100
+
+# 95% CI of obs
+doc_obs_05 = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12- 1.96 * docPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
+doc_obs_95 = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+ 1.96 * docPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
+perc_doc_ci_in_ci = sum(doc_obs_05 < doc_95 & doc_obs_95 > doc_05, na.rm = T) / sum(!is.na(doc_obs_05)) * 100
+
+co2_obs_05 = z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12- 1.96 * dicPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
+co2_obs_95 = z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+ 1.96 * dicPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
+perc_co2_ci_in_ci = sum(co2_obs_05 < co2_95 & co2_obs_95 > co2_05, na.rm = T) / sum(!is.na(co2_obs_05)) * 100
+
+
 #this is kinda cool
 windows()
 for(t in 1:length(data2$datetime)){
