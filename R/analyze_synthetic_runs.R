@@ -75,6 +75,8 @@ models<-models[sort.list(models$modelNumber),]
 
 models<-models[models$reps<10&models$freq<60,]
 
+ylim_doc = c(-.2,1.3)
+ylim_dic = c(-0.05, 0.075)
 
 png('/Users/jzwart/LakeCarbonEnKF/Figures/Fig4_DOC_RMSE.png',
     res=300, width=7, height=7, units = 'in')
