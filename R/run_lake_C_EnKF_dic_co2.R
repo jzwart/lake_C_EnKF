@@ -2,10 +2,12 @@
 # # # # JAZ; 2016-03-28
 # validating with every other observation
 
+# this model explicitly accounts for changes in pH and carbonate equilibrium in model
+
 ###################
 #Run Kalman filter
-load('Data/EnKF_LongData_20170223.RData')
-source('R/EnKF.R')
+load('Data/EL_20170408.RData')
+source('R/EnKF_dic_co2.R')
 
 splitFunc<-function(epiDens,streamDens,fracIn){ # not based on density difference between, just fraction split
   fracInEpi=exp(-fracIn*(streamDens-epiDens))
