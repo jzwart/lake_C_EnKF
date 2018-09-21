@@ -7,7 +7,6 @@ EnKF_2pools_dic_co2 <- function(Y, z, i, t){
       z$pars[1:5,1,t,i]<-Y[1:5,1,t-1,i] # r20
       z$X[1:5,1,t-1,i]<-Y[6:10,1,t-1,i] # updating state variables from Y
 
-#_______###################**********I'm Here****************##########################________________________________________
       #Predictions
       z$X[,,t,i]<-z$B[,,t-1,i]%*%z$X[,,t-1,i] + z$C[,,t-1,i]%*%z$ut[,,t-1,i] # forecasting state variable predictions
       z$B[,,t,i]<-matrix(c(1-data2$QoutInt[t]/data2$epiVol[t]-
@@ -15,9 +14,7 @@ EnKF_2pools_dic_co2 <- function(Y, z, i, t){
                            data2$kCO2[t]/data2$thermo.depth[t]+
                            (data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],fracInVec[i])))*
                            data2$entrainHypo[t]/data2$epiVol[t],0,rFunc(rVec[i],data2$wtr[t]),rFunc(rVec_fast[i],data2$wtr[t]),0, # end of row 1
-                         1*frac_co2(dic = z$X[1,,t,i], ph = data2$pH_sensor_corr[t], temp = data2$wtr[t], vol_epi = data2$epiVol[t]),#-
-                           #frac_co2(dic = z$X[1,,t,i], ph = data2$pH_sensor_corr[t], temp = data2$wtr[t], vol_epi = data2$epiVol[t])*
-                           # data2$kCO2[t]/data2$thermo.depth[t],
+                         1*frac_co2(dic = z$X[1,,t,i], ph = data2$pH_sensor_corr[t], temp = data2$wtr[t], vol_epi = data2$epiVol[t]),
                            0,0,0,0, # end of row 2
                          0,0,1-rFunc(rVec[i],data2$wtr[t])-data2$QoutInt[t]/data2$epiVol[t]+
                            (data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],fracInVec[i])))*

@@ -151,9 +151,7 @@ for(i in 1:nEn){
                        data2$kCO2[1]/data2$thermo.depth[1]+
                        (data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*
                        data2$entrainHypo[1]/data2$epiVol[1],0,rFunc(rVec[i],data2$wtr[1]),rFunc(rVec_fast[i],data2$wtr[1]),0, # end of row 1
-                     1*frac_co2(dic = X[1,,1,i], ph = data2$pH_sensor_corr[1], temp = data2$wtr[1], vol_epi = data2$epiVol[1]),#-
-                      # frac_co2(dic = X[1,,1,i], ph = data2$pH_sensor_corr[1], temp = data2$wtr[1], vol_epi = data2$epiVol[1])*
-                      # data2$kCO2[1]/data2$thermo.depth[1],
+                     1*frac_co2(dic = X[1,,1,i], ph = data2$pH_sensor_corr[1], temp = data2$wtr[1], vol_epi = data2$epiVol[1]),
                        0,0,0,0, # end of row 2
                      0,0,1-rFunc(rVec[i],data2$wtr[1])-data2$QoutInt[1]/data2$epiVol[1]+
                        (data2$entrainVol[1]-data2$streamWaterdisch[1]*(1-splitFunc(data2$epiDens[1],data2$streamDens[1],fracInVec[i])))*
