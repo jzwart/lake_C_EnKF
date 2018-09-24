@@ -6,6 +6,7 @@
 
 ###################
 #Run Kalman filter
+library(dplyr)
 load('Data/EL_20170408.RData') # in this Rdata version, dic = dic and co2 = co2; in the previous one EnKF_LongData_20170223.RData, dic = co2 and there was no total dic data
 ph = readRDS('Data/EL_ph.rds') %>%
   mutate(date= as.character(date))
@@ -239,9 +240,11 @@ Y = out$Y
 assim_obs = out$assim_obs
 
 # # mean RMSE for states
+print(sqrt(mean((apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12-z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12)^2,na.rm=T)))
 print(sqrt(mean((apply(Y[7,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12-z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12)^2,na.rm=T)))
 print(sqrt(mean((apply(Y[10,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12-z$y[3,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12)^2,na.rm=T)))
 
+cor(apply(Y[6,1,!is.na(z$y[1,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[1,1,,1])&assim_obs==0]*12,z$y[1,1,!is.na(z$y[1,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[1,1,,1])&assim_obs==0]*12)^2
 cor(apply(Y[7,1,!is.na(z$y[2,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12,z$y[2,1,!is.na(z$y[2,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12)^2
 cor(apply(Y[10,1,!is.na(z$y[3,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[3,1,,1])&assim_obs==0]*12,z$y[3,1,!is.na(z$y[3,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[3,1,,1])&assim_obs==0]*12)^2
 
