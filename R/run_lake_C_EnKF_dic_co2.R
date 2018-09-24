@@ -39,6 +39,8 @@ frac_co2 <- function(dic, ph, temp, vol_epi, sal = 0){ # function that takes tem
 
 set.seed(42)
 
+ph$pH_sensor_corr = ph$int_pH_manual
+
 data2 <- data
 data2 <- left_join(data2, ph, by = c('datetime' = 'date'))
 data2$hypo_dicInt<-data2$hypo_dicInt*0.25 # entrained CO2 is much less than where we measure CO2

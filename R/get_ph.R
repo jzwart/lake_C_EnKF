@@ -38,10 +38,16 @@ points(offset$pHmanual ~ offset$dateTime, col = 'red', pch=16,cex =2)
 
 # pH to be used in DA
 out <- offset %>%
-  select(dateTime, pH_sensor_corr) %>%
+  select(dateTime, pH_sensor_corr, pHmanual) %>%
   mutate(date = as.Date(dateTime)) %>%
   group_by(date) %>%
-  summarise(pH_sensor_corr = mean(pH_sensor_corr))
+  summarise(pH_sensor_corr = mean(pH_sensor_corr),
+            pH_manual = mean(pHmanual, na.rm=T)) %>%
+  mutate(int_pH_manual = pH_manual)
+
+out$int_pH_manual[1] = out$int_pH_manual[min(which(!is.na(out$pH_manual)))]
+out$int_pH_manual[nrow(out)] = out$int_pH_manual[max(which(!is.na(out$pH_manual)))]
+out$int_pH_manual = approx(out$date, out$int_pH_manual, out$date)$y
 
 plot(out$pH_sensor_corr, type ='l')
 
