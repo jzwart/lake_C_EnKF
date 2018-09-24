@@ -500,3 +500,24 @@ range(DOCout[]/linInt$y[2,1,,1],na.rm = T)
 range(DOCout[!as.numeric(h[2,9,])]/linInt$y[2,1,!as.numeric(h[2,9,]),1],na.rm = T)
 range(DOCout[as.logical(h[2,9,])]/linInt$y[2,1,as.logical(h[2,9,]),1],na.rm = T)
 
+
+# what are the chances of get a correlation?
+
+co2_da_mean = apply(Y[6,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+co2_obs = z$y[1,1,,1]/data2$epiVol*12
+co2_obs_sd = dicPoolSD/data2$epiVol*12
+
+corr_out = c()
+for(i in 1:10000){
+  synthetic_co2_obs = rnorm(length(co2_obs), co2_obs, co2_obs_sd)
+  cur= cor(co2_da_mean[!is.na(synthetic_co2_obs)&assim_obs==0],synthetic_co2_obs[!is.na(synthetic_co2_obs)&assim_obs==0])
+  corr_out = rbind(corr_out, cur)
+}
+plot(corr_out)
+abline(cor(apply(Y[6,1,!is.na(z$y[1,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[1,1,,1])&assim_obs==0]*12,z$y[1,1,!is.na(z$y[1,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[1,1,,1])&assim_obs==0]*12)^2,0)
+mean(corr_out)
+sd(corr_out)
+median(corr_out)
+
+plot(density(corr_out), xlab= 'correlation')
+abline(v= cor(apply(Y[6,1,!is.na(z$y[1,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[1,1,,1])&assim_obs==0]*12,z$y[1,1,!is.na(z$y[1,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[1,1,,1])&assim_obs==0]*12)^2, lwd= 2, lty =2)
