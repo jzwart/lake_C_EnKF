@@ -583,6 +583,26 @@ arrows(obs, CO2out-CO2sd, obs, CO2out + CO2sd,code=3,length=0.1,angle=90,col='gr
 arrows(obs-co2PoolSD/data2$epiVol*12, CO2out, obs+co2PoolSD/data2$epiVol*12, CO2out, code=3,length=0.1,angle=90,col='grey',lwd=3)
 points(CO2out~obs,ylim=ylim,cex.axis=cex.axis, xlim =xlim, cex = 2, pch =16)
 
+# what obs produce best correlation?
+co2_da_mean = apply(Y[7,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+co2_obs = z$y[2,1,,1]/data2$epiVol*12
+
+n_obs = 6
+
+corr_out = c()
+for(i in 1:10000){
+  cur_obs_loc = which(!is.na(co2_obs))
+  cur_obs_loc = sort(sample(cur_obs_loc, size = n_obs, replace = F))
+
+  cur= cor(co2_da_mean[cur_obs_loc],co2_obs[cur_obs_loc])
+  corr_out = rbind(corr_out, cur)
+}
+
+plot(corr_out)
+
+plot(density(corr_out), xlab= 'correlation')
+abline(v= cor(apply(Y[7,1,!is.na(z$y[2,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12,z$y[2,1,!is.na(z$y[2,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12)^2, lwd= 2, lty =2)
+
 
 # what are the chances of get a correlation?
 
