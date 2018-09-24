@@ -500,6 +500,23 @@ range(DOCout[]/linInt$y[2,1,,1],na.rm = T)
 range(DOCout[!as.numeric(h[2,9,])]/linInt$y[2,1,!as.numeric(h[2,9,]),1],na.rm = T)
 range(DOCout[as.logical(h[2,9,])]/linInt$y[2,1,as.logical(h[2,9,]),1],na.rm = T)
 
+# 1:1 plot with error bars
+windows()
+CO2out<-apply(Y[6,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+CO2sd <- apply(Y[6,1,,]/data2$epiVol*12, MARGIN = 1, FUN = sd)
+ylim = c(.15,.6)
+xlim = ylim
+
+obs = z$y[1,1,,1]/data2$epiVol*12
+
+plot(CO2out~obs,ylim=ylim,cex.axis=cex.axis, xlim =xlim, cex = 2, pch =16,
+     ylab=expression(Estimated~CO[2]~(mg~C~L^-1)),cex.lab=1.5, xlab=expression(Observed~CO[2]~(mg~C~L^-1)))
+abline(0,1, lty =2 ,lwd = 2)
+arrows(obs, CO2out-CO2sd, obs, CO2out + CO2sd,code=3,length=0.1,angle=90,col='grey',lwd=3)
+arrows(obs-co2PoolSD/data2$epiVol*12, CO2out, obs+co2PoolSD/data2$epiVol*12, CO2out, code=3,length=0.1,angle=90,col='grey',lwd=3)
+points(CO2out~obs,ylim=ylim,cex.axis=cex.axis, xlim =xlim, cex = 2, pch =16)
+
+
 
 # what obs produce best correlation?
 co2_da_mean = apply(Y[6,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
