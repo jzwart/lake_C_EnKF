@@ -4,6 +4,7 @@
 
 ###################
 #Run Kalman filter
+library(dplyr)
 load('Data/EnKF_LongData_20170223.RData')
 source('R/EnKF.R')
 
