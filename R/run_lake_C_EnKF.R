@@ -501,6 +501,27 @@ range(DOCout[!as.numeric(h[2,9,])]/linInt$y[2,1,!as.numeric(h[2,9,]),1],na.rm = 
 range(DOCout[as.logical(h[2,9,])]/linInt$y[2,1,as.logical(h[2,9,]),1],na.rm = T)
 
 
+# what obs produce best correlation?
+co2_da_mean = apply(Y[6,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+co2_obs = z$y[1,1,,1]/data2$epiVol*12
+
+n_obs = 6
+
+corr_out = c()
+for(i in 1:10000){
+  cur_obs_loc = which(!is.na(co2_obs))
+  cur_obs_loc = sort(sample(cur_obs_loc, size = n_obs, replace = F))
+
+  cur= cor(co2_da_mean[cur_obs_loc],co2_obs[cur_obs_loc])
+  corr_out = rbind(corr_out, cur)
+}
+
+plot(corr_out)
+
+plot(density(corr_out), xlab= 'correlation')
+abline(v= cor(apply(Y[6,1,!is.na(z$y[1,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[1,1,,1])&assim_obs==0]*12,z$y[1,1,!is.na(z$y[1,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[1,1,,1])&assim_obs==0]*12)^2, lwd= 2, lty =2)
+
+
 # what are the chances of get a correlation?
 
 co2_da_mean = apply(Y[6,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
