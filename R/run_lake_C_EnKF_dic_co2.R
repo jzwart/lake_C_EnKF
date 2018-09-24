@@ -101,9 +101,9 @@ if(is.na(dicVec[1])){
 # DOC / DIC concentration error from replication day in WL on 2014-07-30. CV for DOC is 0.1325858, DIC is 0.1367684
 # Epi: area sd = 4000m2; depth sd = 0.25 m;
 # iota sd from metab estimates
-docSDadjust<-1
-dicSDadjust<-1
-co2SDadjust<-1
+docSDadjust<-.1
+dicSDadjust<-.1
+co2SDadjust<-.1
 docSD<-(data2$doc/data2$epiVol)*0.1325858 # DOC concentration sd in mol C
 docSD<-ifelse(is.na(docSD),docSD,docSD[data2$datetime=='2014-07-30']) # making SD the same for all observations; not based on concentration 2016-11-22
 docSD<-docSD*docSDadjust # DOC concentration sd in mol C; modifying for sensativity analysis
@@ -171,7 +171,7 @@ for(i in 1:nEn){
 # operator matrix saying 1 if there is observation data available, 0 otherwise
 h<-array(0,dim=c(3,10,nStep))
 for(i in 1:nStep){
-  h[1,6,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic
+  h[1,6,i]<-ifelse(!is.na(y[1,1,i,1]),1,0) #dic - NOT ASSIMLATING DIC FOR TESTING
   h[2,7,i]<-ifelse(!is.na(y[2,1,i,1]),1,0) # co2
   h[3,10,i]<-ifelse(!is.na(y[3,1,i,1]),1,0) #doc total (we only have data on total DOC pool)
 }
