@@ -248,6 +248,9 @@ cor(apply(Y[6,1,!is.na(z$y[1,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$ep
 cor(apply(Y[7,1,!is.na(z$y[2,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12,z$y[2,1,!is.na(z$y[2,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12)^2
 cor(apply(Y[10,1,!is.na(z$y[3,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[3,1,,1])&assim_obs==0]*12,z$y[3,1,!is.na(z$y[3,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[3,1,,1])&assim_obs==0]*12)^2
 
+#using all obs for cor
+cor(apply(Y[7,1,!is.na(z$y[2,1,,1]),],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[2,1,,1])]*12,z$y[2,1,!is.na(z$y[2,1,,1]),1]/data2$epiVol[!is.na(z$y[2,1,,1])]*12)^2
+
 #bias
 mean(apply(Y[7,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12-z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12,na.rm = T)^2
 mean(apply(Y[10,1,assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[assim_obs==0]*12-z$y[3,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12,na.rm=T)^2
@@ -271,36 +274,36 @@ obs = z$y[3,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
 AIC(logLik(lm(obs~fit)))
 
 # checking if variance in ensembles captures the obs at 95% confidence
-# #
-# doc_05 = (apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
-# doc_95 = (apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[9,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
-# doc_obs = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
+#
+doc_05 = (apply(Y[10,1,assim_obs==0,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[10,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
+doc_95 = (apply(Y[10,1,assim_obs==0,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[10,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
+doc_obs = z$y[3,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
+perc_doc_obs_in_ci = sum(doc_obs < doc_95 & doc_obs > doc_05, na.rm = T) / sum(!is.na(doc_obs)) * 100
+
+co2_05 = (apply(Y[7,1,assim_obs==0,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[7,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
+co2_95 = (apply(Y[7,1,assim_obs==0,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[7,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
+co2_obs = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
+perc_co2_obs_in_ci = sum(co2_obs < co2_95 & co2_obs > co2_05, na.rm = T) / sum(!is.na(co2_obs)) * 100
+
+# all obs
+# doc_05 = (apply(Y[10,1,,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[10,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
+# doc_95 = (apply(Y[10,1,,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[10,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
+# doc_obs = z$y[3,1,,1]/data2$epiVol[]*12
 # perc_doc_obs_in_ci = sum(doc_obs < doc_95 & doc_obs > doc_05, na.rm = T) / sum(!is.na(doc_obs)) * 100
 #
-# co2_05 = (apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
-# co2_95 = (apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[6,1,assim_obs==0,],MARGIN = 1,FUN=sd)) / data2$epiVol[assim_obs==0]*12
-# co2_obs = z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12
+# co2_05 = (apply(Y[7,1,,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[7,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
+# co2_95 = (apply(Y[7,1,,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[7,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
+# co2_obs = z$y[2,1,,1]/data2$epiVol[]*12
 # perc_co2_obs_in_ci = sum(co2_obs < co2_95 & co2_obs > co2_05, na.rm = T) / sum(!is.na(co2_obs)) * 100
-#
-# # all obs
-# doc_05 = (apply(Y[9,1,,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[9,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
-# doc_95 = (apply(Y[9,1,,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[9,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
-# doc_obs = z$y[2,1,,1]/data2$epiVol[]*12
-# perc_doc_obs_in_ci = sum(doc_obs < doc_95 & doc_obs > doc_05, na.rm = T) / sum(!is.na(doc_obs)) * 100
-#
-# co2_05 = (apply(Y[6,1,,],MARGIN = 1,FUN=mean) - 1.96 * apply(Y[6,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
-# co2_95 = (apply(Y[6,1,,],MARGIN = 1,FUN=mean) + 1.96 * apply(Y[6,1,,],MARGIN = 1,FUN=sd)) / data2$epiVol[]*12
-# co2_obs = z$y[1,1,,1]/data2$epiVol[]*12
-# perc_co2_obs_in_ci = sum(co2_obs < co2_95 & co2_obs > co2_05, na.rm = T) / sum(!is.na(co2_obs)) * 100
-#
-# # 95% CI of obs
-# doc_obs_05 = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12- 1.96 * docPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
-# doc_obs_95 = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+ 1.96 * docPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
-# perc_doc_ci_in_ci = sum(doc_obs_05 < doc_95 & doc_obs_95 > doc_05, na.rm = T) / sum(!is.na(doc_obs_05)) * 100
-#
-# co2_obs_05 = z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12- 1.96 * dicPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
-# co2_obs_95 = z$y[1,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+ 1.96 * dicPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
-# perc_co2_ci_in_ci = sum(co2_obs_05 < co2_95 & co2_obs_95 > co2_05, na.rm = T) / sum(!is.na(co2_obs_05)) * 100
+
+# 95% CI of obs
+doc_obs_05 = z$y[3,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12- 1.96 * docPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
+doc_obs_95 = z$y[3,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+ 1.96 * docPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
+perc_doc_ci_in_ci = sum(doc_obs_05 < doc_95 & doc_obs_95 > doc_05, na.rm = T) / sum(!is.na(doc_obs_05)) * 100
+
+co2_obs_05 = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12- 1.96 * dicPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
+co2_obs_95 = z$y[2,1,assim_obs==0,1]/data2$epiVol[assim_obs==0]*12+ 1.96 * dicPoolSD[assim_obs==0]/data2$epiVol[assim_obs==0]*12
+perc_co2_ci_in_ci = sum(co2_obs_05 < co2_95 & co2_obs_95 > co2_05, na.rm = T) / sum(!is.na(co2_obs_05)) * 100
 
 
 #this is kinda cool
@@ -324,9 +327,9 @@ for(t in 1:length(data2$datetime)){
 
 # # Figure 2 plotting concentration
 ###############
-png('Figures/Fig2_all_rev2.png',
-    res=300, width=14, height=21, units = 'in')
-# windows()
+# png('Figures/Fig2_all_rev2.png',
+#     res=300, width=14, height=21, units = 'in')
+windows()
 l_mar = 0.35
 b_mar = 0.1
 t_mar = 0.05
@@ -561,4 +564,44 @@ range(DICout[as.logical(h[1,6,])]/linInt$y[1,1,as.logical(h[1,6,]),1],na.rm = T)
 range(DOCout[]/linInt$y[2,1,,1],na.rm = T)
 range(DOCout[!as.numeric(h[2,9,])]/linInt$y[2,1,!as.numeric(h[2,9,]),1],na.rm = T)
 range(DOCout[as.logical(h[2,9,])]/linInt$y[2,1,as.logical(h[2,9,]),1],na.rm = T)
+
+
+# 1:1 plot with error bars
+windows()
+CO2out<-apply(Y[7,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+CO2sd <- apply(Y[7,1,,]/data2$epiVol*12, MARGIN = 1, FUN = sd)
+ylim=range(c(Y[7,1,,]/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12+co2PoolSD/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12-co2PoolSD/data2$epiVol*12),na.rm=T)
+ylim = c(.15,.6)
+xlim = ylim
+
+obs = z$y[2,1,,1]/data2$epiVol*12
+
+plot(CO2out~obs,ylim=ylim,cex.axis=cex.axis, xlim =xlim, cex = 2, pch =16,
+     ylab=expression(Estimated~CO[2]~(mg~C~L^-1)),cex.lab=1.5, xlab=expression(Observed~CO[2]~(mg~C~L^-1)))
+abline(0,1, lty =2 ,lwd = 2)
+arrows(obs, CO2out-CO2sd, obs, CO2out + CO2sd,code=3,length=0.1,angle=90,col='grey',lwd=3)
+arrows(obs-co2PoolSD/data2$epiVol*12, CO2out, obs+co2PoolSD/data2$epiVol*12, CO2out, code=3,length=0.1,angle=90,col='grey',lwd=3)
+points(CO2out~obs,ylim=ylim,cex.axis=cex.axis, xlim =xlim, cex = 2, pch =16)
+
+
+# what are the chances of get a correlation?
+
+co2_da_mean = apply(Y[7,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
+co2_obs = z$y[2,1,,1]/data2$epiVol*12
+co2_obs_sd = co2PoolSD/data2$epiVol*12
+
+corr_out = c()
+for(i in 1:10000){
+  synthetic_co2_obs = rnorm(length(co2_obs), co2_obs, co2_obs_sd)
+  cur= cor(co2_da_mean[!is.na(synthetic_co2_obs)&assim_obs==0],synthetic_co2_obs[!is.na(synthetic_co2_obs)&assim_obs==0])
+  corr_out = rbind(corr_out, cur)
+}
+plot(corr_out)
+abline(cor(apply(Y[7,1,!is.na(z$y[2,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12,z$y[2,1,!is.na(z$y[2,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12)^2,0)
+mean(corr_out)
+sd(corr_out)
+median(corr_out)
+
+plot(density(corr_out), xlab= 'correlation')
+abline(v= cor(apply(Y[7,1,!is.na(z$y[2,1,,1])&assim_obs==0,],MARGIN = 1,FUN=mean)/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12,z$y[2,1,!is.na(z$y[2,1,,1])&assim_obs==0,1]/data2$epiVol[!is.na(z$y[2,1,,1])&assim_obs==0]*12)^2, lwd= 2, lty =2)
 
