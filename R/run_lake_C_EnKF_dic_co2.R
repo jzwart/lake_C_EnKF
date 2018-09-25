@@ -232,7 +232,7 @@ Y[8,1,1,]<-z$X[3,1,1,] # DOC recalcitrant state
 Y[9,1,1,]<-z$X[4,1,1,] # DOC labile state
 Y[10,1,1,]<-z$X[5,1,1,] # DOC total state
 
-assim_number <- 1 # counter for checking if observation should be assimilated or not (assimilating everyother obs, validating on left out obs); assimilate odd numbers
+assim_number <- 0 # counter for checking if observation should be assimilated or not (assimilating everyother obs, validating on left out obs); assimilate odd numbers
 assim_obs <- rep(0,nStep)
 
 out = EnKF_2pools_dic_co2(Y, z, i, t) # run EnKF dic / co2 version
@@ -582,6 +582,7 @@ abline(0,1, lty =2 ,lwd = 2)
 arrows(obs, CO2out-CO2sd, obs, CO2out + CO2sd,code=3,length=0.1,angle=90,col='grey',lwd=3)
 arrows(obs-co2PoolSD/data2$epiVol*12, CO2out, obs+co2PoolSD/data2$epiVol*12, CO2out, code=3,length=0.1,angle=90,col='grey',lwd=3)
 points(CO2out~obs,ylim=ylim,cex.axis=cex.axis, xlim =xlim, cex = 2, pch =16)
+points(CO2out[assim_obs==0] ~ obs[assim_obs==0], ylim=ylim,cex.axis=cex.axis, xlim =xlim, cex = 2, pch =16, col='red')
 
 # what obs produce best correlation?
 co2_da_mean = apply(Y[7,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
