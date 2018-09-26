@@ -28,6 +28,7 @@ EnKF_2pools_dic_co2 <- function(Y, z, i, t){
                            (data2$entrainVol[t]-data2$streamWaterdisch[t]*(1-splitFunc(data2$epiDens[t],data2$streamDens[t],fracInVec[i])))*
                            data2$entrainHypo[t]/data2$epiVol[t],0), # end of row 5
                        nrow=5,byrow=T)
+      z$X[2,,t,i] <- z$X[1,,t,i] * frac_co2(dic = z$X[1,,t,i], ph = data2$pH_sensor_corr[t], temp = data2$wtr[t], vol_epi = data2$epiVol[t])# changing CO2 because it's based on today's DIC pool not yesterday's
       z$y[,,t,i]<-z$y[,,t,i] # observation of states stay the same
       # parameters are of previous timestep for matrix C, parameters of covariates [5x7]
       z$C[,,t,i]<-matrix(c(data2$kCO2[t],1,-data2$ma_gpp[t],0,0,0,data2$hypo_dicInt[t], # end of row 1

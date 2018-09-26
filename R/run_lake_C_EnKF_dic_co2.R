@@ -232,7 +232,7 @@ Y[8,1,1,]<-z$X[3,1,1,] # DOC recalcitrant state
 Y[9,1,1,]<-z$X[4,1,1,] # DOC labile state
 Y[10,1,1,]<-z$X[5,1,1,] # DOC total state
 
-assim_number <- 0 # counter for checking if observation should be assimilated or not (assimilating everyother obs, validating on left out obs); assimilate odd numbers
+assim_number <- 1 # counter for checking if observation should be assimilated or not (assimilating everyother obs, validating on left out obs); assimilate odd numbers
 assim_obs <- rep(0,nStep)
 
 out = EnKF_2pools_dic_co2(Y, z, i, t) # run EnKF dic / co2 version
@@ -327,9 +327,9 @@ for(t in 1:length(data2$datetime)){
 
 # # Figure 2 plotting concentration
 ###############
-# png('Figures/Fig2_all_rev2.png',
-#     res=300, width=14, height=21, units = 'in')
-windows()
+png('Figures/Fig2_all_rev2.png',
+    res=300, width=14, height=21, units = 'in')
+# windows()
 l_mar = 0.35
 b_mar = 0.1
 t_mar = 0.05
