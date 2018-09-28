@@ -176,7 +176,7 @@ Y[7,1,1,]<-z$X[2,1,1,] # DOC recalcitrant state
 Y[8,1,1,]<-z$X[3,1,1,] # DOC labile state
 Y[9,1,1,]<-z$X[4,1,1,] # DOC total state
 
-assim_number <- 0 # counter for checking if observation should be assimilated or not (assimilating everyother obs, validating on left out obs); assimilate odd numbers
+assim_number <- 1 # counter for checking if observation should be assimilated or not (assimilating everyother obs, validating on left out obs); assimilate odd numbers
 assim_obs <- rep(0,nStep)
 
 out = EnKF_2pools(Y, z, i, t) # run EnKF
