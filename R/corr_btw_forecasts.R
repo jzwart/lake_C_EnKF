@@ -1,26 +1,4 @@
 
-out1 # CO2 / DOC model
-out # DIC / CO2 / DOC model
-
-Y1 = out1$Y
-Y = out$Y
-
-co2_doc_mod = apply(Y1[6,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12
-
-dic_co2_doc_mod = apply(Y[7,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12
-
-
-cor(co2_doc_mod, dic_co2_doc_mod)
-sqrt(mean((co2_doc_mod - dic_co2_doc_mod)^2))
-
-ylim = c(0.2,0.7)
-xlim = ylim
-plot(co2_doc_mod~ dic_co2_doc_mod, xlim = xlim, ylim =ylim, ylab= 'Old Model', xlab='New Model')
-abline(0,1, lty = 2, lwd = 2)
-# abline(lm(co2_doc_mod~dic_co2_doc_mod))
-
-
-AIC(logLik(lm(co2_doc_mod~dic_co2_doc_mod)))
 
 
 t_col <- function(color, percent = 50, name = NULL) {
@@ -39,6 +17,42 @@ t_col <- function(color, percent = 50, name = NULL) {
 
 }
 
+out1 # CO2 / DOC model
+out # DIC / CO2 / DOC model
+
+Y1 = out1$Y
+Y = out$Y
+
+co2_doc_mod = apply(Y1[6,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12
+
+dic_co2_doc_mod = apply(Y[7,1,,],MARGIN = 1,FUN=mean)/data2$epiVol*12
+
+
+cor(co2_doc_mod, dic_co2_doc_mod)
+sqrt(mean((co2_doc_mod - dic_co2_doc_mod)^2))
+
+ylim = c(0.2,0.7)
+xlim = ylim
+plot(co2_doc_mod~ dic_co2_doc_mod, xlim = xlim, ylim =ylim, pch=16, ylab= 'CO2 Only Model', xlab='Carbonate Model')
+abline(0,1, lty = 2, lwd = 2)
+
+windows()
+old = Y1[6,1,,1]/data2$epiVol*12
+new = Y[7,1,,1]/data2$epiVol*12
+ylim = c(0.2,0.7)
+xlim = ylim
+plot(new~old, pch =16, col = t_col('black', 80), ylim = ylim, xlim= xlim)
+for(i in 2:nEn){
+  old = Y1[6,1,,i]/data2$epiVol*12
+  new = Y[7,1,,i]/data2$epiVol*12
+
+  points(new~old, pch =16, col = t_col('black', 80), ylim = ylim, xlim= xlim)
+}
+abline(0,1, lwd=2, lty=2, col ='red')
+
+# AIC(logLik(lm(co2_doc_mod~dic_co2_doc_mod)))
+
+
 windows()
 l_mar = 0.35
 b_mar = 0.1
@@ -48,11 +62,12 @@ gapper = 0.15 # space between panels
 leg = 0.05 # distance from corner for panel label
 
 cex=4
-cex.lab=3
+cex.lab=2
 cex.axis=2
 lwd=3
 ylim=c(0.5,3)
 xlim=range(as.POSIXct(data2$datetime))
+par(mar = c(5,6,1,1))
 CO2out<-apply(Y[7,1,,]/data2$epiVol*12,MARGIN = 1,FUN=mean)
 ylim=range(c(Y[7,1,,]/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12+co2PoolSD/data2$epiVol*12,z$y[2,1,,1]/data2$epiVol*12-co2PoolSD/data2$epiVol*12),na.rm=T)
 plot(CO2out~as.POSIXct(data2$datetime),type='l',ylim=ylim,lwd=lwd,cex.axis=cex.axis, col= t_col('red',80),
@@ -84,8 +99,59 @@ plot(z$y[2,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12~as.POSIXct(data2$date
 arrows(as.POSIXct(data2$datetime[assim_obs==1]),z$y[2,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12-co2PoolSD[assim_obs==1]/data2$epiVol[assim_obs==1]*12,
        as.POSIXct(data2$datetime[assim_obs==1]),z$y[2,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12+co2PoolSD[assim_obs==1]/data2$epiVol[assim_obs==1]*12,
        code=3,length=0.1,angle=90,col='black',lwd=3)
-legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
-       col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),cex = cex.axis,
-       ncol=1,lwd=c(4,4,0),bty='n',lty=c(1,1,0),pt.cex = c(0,0,2),pch = c(0,0,16))
-text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'B', cex = cex.lab)
+# legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
+#        col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),cex = cex.axis,
+#        ncol=1,lwd=c(4,4,0),bty='n',lty=c(1,1,0),pt.cex = c(0,0,2),pch = c(0,0,16))
+# text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'B', cex = cex.lab)
+
+
+# diff in pH
+data2$pH_sensor_corr
+data2$ph_diff = c(NA,diff(data2$pH_sensor_corr))
+windows()
+plot(data2$ph_diff, pch =16, ylab= 'Day-to-day change in pH', cex = 2, cex.lab =1.4, xlab= '')
+abline(0,0, lty=2, lwd= 2)
+
+
+# how much CO2 flux occurs with day-to-day change in pH?
+# pH_vals = seq(5,8.5, by = .1)
+# pH_range = 0.01
+
+data2$CO2_diff <- NA
+
+for(i in 2:nrow(data2)){
+  sal = 0
+  temp = data2$epiTemp[i]
+  DIC_pool = mean(data2$dic, na.rm = T) # mol C; don't have data every day so taking average
+  Vepi = mean(data2$epiVol,na.rm = T) # m^3
+  today_pH = data2$pH_sensor_corr[i]
+  yesterday_pH = data2$pH_sensor_corr[i-1]
+
+  today_pH = AquaEnv::aquaenv(S = sal, # salinity
+                            t = temp, # water temp
+                            d = 0, # depth
+                            lat = 46, # latitude
+                            SumCO2 = DIC_pool/Vepi/rLakeAnalyzer::water.density(temp,sal),
+                            pH = today_pH)
+
+  today_CO2=today_pH$CO2[1]*water.density(temp,sal)*Vepi
+  today_fracCO2=today_CO2/DIC_pool
+
+
+  yesterday_pH = AquaEnv::aquaenv(S = sal, # salinity
+                             t = temp, # water temp
+                             d = 0, # depth
+                             lat = 46, # latitude
+                             SumCO2 = DIC_pool/Vepi/rLakeAnalyzer::water.density(temp,sal),
+                             pH = yesterday_pH)
+
+  yesterday_CO2=yesterday_pH$CO2[1]*water.density(temp,sal)*Vepi
+  yesterday_fracCO2=yesterday_CO2/DIC_pool
+
+  data2$CO2_diff[i] <- today_CO2-yesterday_CO2
+}
+
+plot(data2$CO2_diff/Vepi*12 ~ as.POSIXct(data2$datetime), pch=16, cex = 2, xlab = '',
+     ylab = 'day-to-day CO2 change due to pH (mg C / L / day)')
+abline(0,0, lty =2 , lwd= 2)
 
