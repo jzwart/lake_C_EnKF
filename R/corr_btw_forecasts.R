@@ -68,6 +68,9 @@ xlim = ylim
 plot(co2_doc_mod~ dic_co2_doc_mod, xlim = xlim, ylim =ylim, pch=16, ylab= 'CO2 Only Model', xlab='Carbonate Model')
 abline(0,1, lty = 2, lwd = 2)
 
+step = seq(1:length(co2_doc_mod))
+error = co2_doc_mod - dic_co2_doc_mod
+plot(error ~ step, ylab = 'DOC diff (mg L-1)', pch =16)
 
 #co2
 windows()
