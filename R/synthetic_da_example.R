@@ -476,7 +476,7 @@ leg=0.05
 
 cex=3
 cex.lab=3
-cex.axis=3
+cex.axis=2.5
 cex.leg=1.5
 lwd=3
 ylim=c(0.5,3)
