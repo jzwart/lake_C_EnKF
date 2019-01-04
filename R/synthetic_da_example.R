@@ -497,7 +497,7 @@ plot(z$y[2,1,(spinUpLength+1):nStep,1]/data2$epiVol*12~as.POSIXct(data2$datetime
      ylim=ylim,col='black',pch=16,cex=cex,xlab='',cex.lab=cex.lab)
 arrows(as.POSIXct(data2$datetime),(z$y[2,1,,1]/data2$epiVol*12)-docPoolSD/data2$epiVol*12,as.POSIXct(data2$datetime),
        (z$y[2,1,,1]/data2$epiVol*12)+docPoolSD/data2$epiVol*12,code=3,length=0.1,angle=90,col='black',lwd=lwd)
-legend("topleft", legend=c("Estimated State","Ensemble Mean",'True State','Observed State'),
+legend(x = as.POSIXct('2014-06-10'), y = 22.5, legend=c("Estimated State","Ensemble Mean",'True State','Observed State'),
        col=c('gray','gray30','black','black'),pt.bg=c('gray','gray30','black','black'), cex=cex.leg,
        ncol=1,lwd=c(4,4,4,0),bty='n',lty=c(1,1,3,0),pt.cex = c(0,0,0,2),pch=c(0,0,0,16))
 text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'A', cex = cex.lab)
@@ -581,11 +581,11 @@ DICcv<-cbind(DICcv,dicPoolSD/dicSDadjust/z$y[1,1,,1])
 ylim=range(DICcv,DOCcv,na.rm=T)
 
 plot(DOCcv[,1]~as.POSIXct(data2$datetime),ylim=ylim,cex=2,cex.axis=1.5,pch=16,type='l',lwd=lwd,
-     ylab=expression(CV~DOC~and~CO[2]~(mol~C)),cex.lab=cex,xlab='')
+     ylab=expression(CV~DOC~and~CO[2]~(mol~C)),cex.lab=cex,cex.axis = cex.axis, xlab='')
 lines(DICcv[,1]~as.POSIXct(data2$datetime),ylim=ylim,cex=2,cex.axis=1.5,pch=16,type='l',lwd=lwd,col='gray60')
 points(DOCcv[,2]~as.POSIXct(data2$datetime),lwd=lwd,lty=2,pch=16,cex=cex)
 points(DICcv[,2]~as.POSIXct(data2$datetime),lwd=lwd,lty=2,pch=16,cex=cex,col='grey60')
-legend("topright", legend=c("DA DOC CV",'DA CO2 CV','Obs DOC CV','Obs CO2 CV'),
+legend(x = as.POSIXct('2014-08-01'), y = 0.15, legend=c("DA DOC CV",'DA CO2 CV','Obs DOC CV','Obs CO2 CV'),
        col=c('black','gray60','black','gray60'),pt.bg=c('black','gray60','black','gray60'), cex=cex.leg,
        ncol=1,lwd=c(4,4,0,0),bty='n',lty=c(1,1,0,0),pch = c(0,0,16,16),pt.cex=c(0,0,2,2))
 text(x=xlim[2]-.01*(xlim[2]-xlim[1]),y = ylim[1]+.01*(ylim[2]-ylim[1]),labels = 'D', cex = cex.lab)

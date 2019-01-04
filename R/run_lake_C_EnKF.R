@@ -306,7 +306,7 @@ plot(z$y[2,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12~as.POSIXct(data2$date
 arrows(as.POSIXct(data2$datetime[assim_obs==1]),z$y[2,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12-docPoolSD[assim_obs==1]/data2$epiVol[assim_obs==1]*12,
        as.POSIXct(data2$datetime[assim_obs==1]),z$y[2,1,assim_obs==1,1]/data2$epiVol[assim_obs==1]*12+docPoolSD[assim_obs==1]/data2$epiVol[assim_obs==1]*12,
        code=3,length=0.1,angle=90,col='black',lwd=3)
-legend("topleft", legend=c("Estimated State","Ensemble Mean",'Observed State'),
+legend(x = as.POSIXct('2014-06-20'), y = 17.6, legend=c("Estimated State","Ensemble Mean",'Observed State'),
        col=c('gray','gray30','black'),pt.bg=c('gray','gray30','black'),cex = cex.axis,
        ncol=1,lwd=c(4,4,0),bty='n',lty=c(1,1,0),pt.cex = c(0,0,2),pch = c(0,0,16))
 text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'A', cex = cex.lab)
@@ -431,7 +431,7 @@ for(i in 1:nEn){
   lines(Y[3,1,,i]~as.POSIXct(data2$datetime),col='gray',ylab='',lwd=lwd,xlab='')
 }
 lines(rOut~as.POSIXct(data2$datetime),ylab='',lwd=lwd,col='gray30',xlab='')
-legend("topright", legend=c("fracFast Estimate","Ensemble Mean"),
+legend(x = as.POSIXct('2014-07-20'), y = 0.07, legend=c("fracFast Estimate","Ensemble Mean"),
        col=c('gray','gray30'),pt.bg=c('gray','gray30'),cex = cex.axis,
        ncol=1,lwd=c(4,4),bty='n',lty=c(1,1),pt.cex = c(0,0),pch = c(0,0))
 text(x=xlim[2]-leg*(xlim[2]-xlim[1]),y = ylim[1]+leg*(ylim[2]-ylim[1]),labels = 'E', cex = cex.lab)
